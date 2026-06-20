@@ -1,7 +1,7 @@
 <p align="center">
   <img src="assets/cat.svg" alt="ClashMac Logo" width="300">
 </p>
-<h1 align="center">ClashMac 27.0</h1>
+<h1 align="center">ClashMac 27</h1>
 <h3 align="center" style="margin-top: 0; margin-bottom: 10px;">Native Proxy Experience Built for macOS</h3>
 <p align="center">
   🌐 <a href="https://clashmac.app"><strong>Official Website</strong></a>
