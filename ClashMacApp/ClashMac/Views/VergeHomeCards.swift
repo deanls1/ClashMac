@@ -85,7 +85,10 @@ struct VergeHomeView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                trafficCard
+                HStack(alignment: .top, spacing: 14) {
+                    clashInfoCard.frame(maxWidth: .infinity)
+                    trafficCard.frame(maxWidth: .infinity)
+                }
             }
             .padding(VergeLayout.contentPadding)
         }
@@ -292,6 +295,37 @@ struct VergeHomeView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(active ? Color.white : Color.secondary)
+    }
+
+    private var clashInfoCard: some View {
+        VergeHomeCard(icon: "cpu", iconColor: VergeColor.accent, title: "Clash 信息") {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    infoTile(title: "内核", value: store.coreVersionLabel, symbol: "shippingbox")
+                    infoTile(title: "混合端口", value: store.coreState.isRunning ? "\(store.mixedPort)" : "—", symbol: "number")
+                    infoTile(title: "规则", value: store.coreState.isRunning ? "\(store.rules.count)" : "—", symbol: "list.bullet.rectangle")
+                    infoTile(title: "运行时长", value: store.coreUptimeLabel, symbol: "clock")
+                }
+            }
+        }
+    }
+
+    private func infoTile(title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: symbol)
+                .font(VergeTypography.small)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(VergeTypography.bodyMedium.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(VergeColor.surface)
+        }
     }
 
     private var trafficCard: some View {

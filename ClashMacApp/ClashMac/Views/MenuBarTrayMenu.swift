@@ -1,9 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// Clash Verge 风格状态栏托盘菜单（图4）
+/// Clash Verge 风格状态栏托盘菜单
 struct MenuBarTrayMenu: View {
     @Bindable var store: AppStore
+
+    private let maxTrayGroups = 16
+    private let maxTrayNodesPerGroup = 12
 
     var body: some View {
         Button("仪表板") {
@@ -41,26 +44,7 @@ struct MenuBarTrayMenu: View {
             }
         }
 
-        Menu("代理") {
-            ForEach(store.groups.prefix(8)) { group in
-                Menu(group.name) {
-                    ForEach(group.nodes.prefix(20)) { node in
-                        Button {
-                            Task { await store.selectNode(group: group, node: node) }
-                        } label: {
-                            if node.isSelected {
-                                Label(node.name, systemImage: "checkmark")
-                            } else {
-                                Text(node.name)
-                            }
-                        }
-                    }
-                }
-            }
-            if store.groups.isEmpty {
-                Text("暂无代理组").disabled(true)
-            }
-        }
+        proxyMenu
 
         Divider()
 
@@ -73,6 +57,13 @@ struct MenuBarTrayMenu: View {
             get: { store.tunEnabled },
             set: { v in Task { await store.setTunEnabled(v) } }
         ))
+
+        Divider()
+
+        Button("关闭全部连接") {
+            Task { await store.closeAllConnections() }
+        }
+        .disabled(!store.coreState.isRunning || store.connections.isEmpty)
 
         Divider()
 
@@ -120,5 +111,42 @@ struct MenuBarTrayMenu: View {
             AppQuit.request()
         }
         .keyboardShortcut("q")
+    }
+
+    @ViewBuilder
+    private var proxyMenu: some View {
+        Menu("代理") {
+            if store.groups.isEmpty {
+                Text("暂无代理组").disabled(true)
+            } else {
+                ForEach(store.groups.prefix(maxTrayGroups)) { group in
+                    Menu(group.name) {
+                        ForEach(group.nodes.prefix(maxTrayNodesPerGroup)) { node in
+                            Button {
+                                Task { await store.selectNode(group: group, node: node) }
+                            } label: {
+                                if node.isSelected {
+                                    Label(node.name, systemImage: "checkmark")
+                                } else {
+                                    Text(node.name)
+                                }
+                            }
+                        }
+                        if group.nodes.count > maxTrayNodesPerGroup {
+                            Text("还有 \(group.nodes.count - maxTrayNodesPerGroup) 个节点…").disabled(true)
+                        }
+                    }
+                }
+                if store.groups.count > maxTrayGroups {
+                    Divider()
+                    Text("还有 \(store.groups.count - maxTrayGroups) 个策略组").disabled(true)
+                }
+                Divider()
+                Button("在仪表板中打开…") {
+                    MainWindowController.open()
+                    store.selectedSection = .proxy
+                }
+            }
+        }
     }
 }

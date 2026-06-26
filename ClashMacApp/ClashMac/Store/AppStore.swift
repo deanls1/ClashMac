@@ -129,6 +129,20 @@ final class AppStore {
         version == "—" ? "未安装" : "v\(version)"
     }
 
+    var coreStartedAt: Date?
+    var coreMemoryLabel = "—"
+
+    var coreUptimeLabel: String {
+        guard coreState.isRunning, let coreStartedAt else { return "—" }
+        let seconds = max(0, Int(Date().timeIntervalSince(coreStartedAt)))
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let secs = seconds % 60
+        if hours > 0 { return "\(hours) 小时 \(minutes) 分" }
+        if minutes > 0 { return "\(minutes) 分 \(secs) 秒" }
+        return "\(secs) 秒"
+    }
+
     var isCoreBannerBusy: Bool {
         isUpdatingCore || isCheckingCore
     }
@@ -710,6 +724,8 @@ final class AppStore {
             }
 
             coreState = .running
+            coreStartedAt = .now
+            await updateCoreRuntimeStats()
             try? CLIInstallService.writeEnvironment(runtime: runtime)
             await refreshAll()
             await refreshIPInfo()
@@ -756,6 +772,8 @@ final class AppStore {
         directIPInfo = nil
         proxyIPInfo = nil
         ipInfo = nil
+        coreStartedAt = nil
+        coreMemoryLabel = "—"
         coreState = .stopped
     }
 
@@ -1058,6 +1076,7 @@ final class AppStore {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, coreState.isRunning else { break }
                 await refreshGroups()
+                await updateCoreRuntimeStats()
             }
         }
     }
@@ -1087,6 +1106,18 @@ final class AppStore {
         guard coreState.isRunning else { return }
         version = (try? await api.version()) ?? version
         if let remoteMode = try? await api.fetchMode() { mode = remoteMode }
+        await updateCoreRuntimeStats()
+    }
+
+    private func updateCoreRuntimeStats() async {
+        let pid: Int32?
+        if usingHelper {
+            let status = await helper.tunnelStatus()
+            pid = status.running ? status.pid : nil
+        } else {
+            pid = CoreProcessController.shared.pid
+        }
+        coreMemoryLabel = CoreMemoryMonitor.formatted(forPID: pid)
     }
 
     private func waitForCore(timeout: TimeInterval) async throws {

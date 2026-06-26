@@ -85,7 +85,8 @@ struct VergeSidebar: View {
             VergeSidebarTrafficFooter(
                 traffic: store.traffic,
                 samples: store.trafficHistory,
-                isRunning: store.coreState.isRunning
+                isRunning: store.coreState.isRunning,
+                memoryLabel: store.coreMemoryLabel
             )
         }
         .frame(width: VergeLayout.sidebarWidth)

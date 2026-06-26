@@ -193,6 +193,7 @@ struct VergeSidebarTrafficFooter: View {
     let traffic: TrafficSnapshot
     let samples: [TrafficSample]
     let isRunning: Bool
+    let memoryLabel: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -220,7 +221,7 @@ struct VergeSidebarTrafficFooter: View {
 
             footerStat(symbol: "arrow.up", color: VergeColor.upload, value: traffic.uploadFormatted)
             footerStat(symbol: "arrow.down", color: VergeColor.download, value: traffic.downloadFormatted)
-            footerStat(symbol: "memorychip", color: .secondary, value: "—")
+            footerStat(symbol: "memorychip", color: .secondary, value: memoryLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)

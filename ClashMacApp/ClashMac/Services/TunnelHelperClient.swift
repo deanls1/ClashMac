@@ -57,6 +57,18 @@ struct TunnelHelperClient: Sendable {
         }
     }
 
+    func tunnelStatus() async -> (running: Bool, pid: Int32) {
+        await withCheckedContinuation { continuation in
+            guard let proxy = makeProxy() else {
+                continuation.resume(returning: (false, 0))
+                return
+            }
+            proxy.tunnelStatus { running, pid in
+                continuation.resume(returning: (running, pid))
+            }
+        }
+    }
+
     var isInstalled: Bool { HelperInstaller.isInstalled() }
 
     private func makeProxy() -> HelperProtocol? {

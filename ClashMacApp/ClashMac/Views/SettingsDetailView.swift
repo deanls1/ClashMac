@@ -10,129 +10,19 @@ struct SettingsDetailView: View {
                 VergePageHeader(DashboardSection.settings.pageTitle)
 
                 VStack(spacing: 16) {
-                    VergeSettingsSection(title: "系统设置", symbol: "gearshape") {
-                        tunRow
-                        toggleRow("系统代理", $store.systemProxyEnabled) { v in
-                            Task { await store.setSystemProxyEnabled(v) } }
-                        Group {
-                            toggleRow("系统代理守护", $store.proxyGuardEnabled) { store.setProxyGuardEnabled($0) }
-                        }
-                        .disabled(store.tunEnabled)
-                        .opacity(store.tunEnabled ? 0.45 : 1)
-                        toggleRow("开机自启", $store.launchAtLogin) { store.setLaunchAtLogin($0) }
-                        toggleRow("全局快捷键", $store.hotkeysEnabled) { store.setHotkeysEnabled($0) }
-                        if store.hotkeysEnabled {
-                            toggleRow("全局热键（需辅助功能）", $store.globalHotkey) { store.setGlobalHotkey($0) }
-                            VergeSettingsRow(title: "快捷键") {
-                                Text("⌘⇧P 启动/停止")
-                                    .font(VergeTypography.mono)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                        spacing: 16
+                    ) {
+                        systemSettingsSection
+                        clashSettingsSection
+                        appearanceSettingsSection
+                        advancedSettingsSection
                     }
 
-                    VergeSettingsSection(title: "Clash 设置", symbol: "network") {
-                        dnsOverwriteRow
-                        toggleRow("IPv6", $store.ipv6Enabled) { _ in store.persistPreferences() }
-                        VergeSettingsRow(title: "日志等级") {
-                            Picker("", selection: $store.logLevel) {
-                                ForEach(LogLevel.allCases) { level in
-                                    Text(level.label).tag(level)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 110)
-                            .onChange(of: store.logLevel) { _, level in store.setLogLevel(level) }
-                        }
-                        VergeSettingsRow(title: "端口设置") {
-                            TextField("", value: $store.mixedPortInput, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 96)
-                        }
-                        toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
-                            store.persistPreferences()
-                        }
-                        if store.enableExternalController {
-                            VergeSettingsRow(title: "控制端口") {
-                                TextField("", value: $store.controllerPortInput, format: .number)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 96)
-                                    .onChange(of: store.controllerPortInput) { _, _ in
-                                        store.persistPreferences()
-                                    }
-                            }
-                        }
-                        coreKernelSection
-                        geoDataSection
-                    }
-
-                    VergeSettingsSection(title: "外观", symbol: "slider.horizontal.3") {
-                        VergeSettingsRow(title: "主题模式") {
-                            Picker("", selection: $store.appearance) {
-                                ForEach(AppAppearance.allCases) { mode in
-                                    Text(mode.label).tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(maxWidth: 280)
-                            .onChange(of: store.appearance) { _, _ in store.persistPreferences() }
-                        }
-                        VergeSettingsRow(title: "托盘图标") {
-                            Picker("", selection: Binding(
-                                get: { store.menuBarIconStyle },
-                                set: { store.setMenuBarIconStyle($0) }
-                            )) {
-                                ForEach(MenuBarIconStyle.allCases) { style in
-                                    Text(style.label).tag(style)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 120)
-                        }
-                    }
-
-                    VergeSettingsSection(title: "高级", symbol: "wrench.and.screwdriver") {
-                        VergeSettingsChevronRow(title: "配置目录", info: true) {
-                            NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
-                        }
-                        VergeSettingsChevronRow(title: "内核目录") {
-                            NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
-                        }
-                        VergeSettingsChevronRow(title: "GeoData 目录") {
-                            NSWorkspace.shared.open(GeoDataUpdateService.geoDirectory())
-                        }
-                        VergeSettingsChevronRow(title: "导出诊断信息") {
-                            let url = store.exportDiagnostic()
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
-                        }
-                        VergeSettingsRow(title: "Clash Mac 版本") {
-                            Text(AppInfo.versionLabel)
-                                .font(VergeTypography.mono)
-                                .foregroundStyle(.secondary)
-                        }
-                        VergeSettingsChevronRow(title: "退出") { store.requestQuit() }
-                    }
-
-                    VergeSettingsSection(title: "Helper & CLI", symbol: "terminal") {
-                        VergeSettingsRow(title: "Helper") {
-                            HStack(spacing: 8) {
-                                Text(store.helperStatus)
-                                    .font(VergeTypography.caption)
-                                    .foregroundStyle(.secondary)
-                                if !HelperInstaller.isInstalled() {
-                                    Button("安装") { store.installHelper() }.controlSize(.small)
-                                }
-                            }
-                        }
-                        Button("安装 clashmac 命令") { store.installCLI() }
-                            .controlSize(.small)
-                        Button("应用并重启内核") { Task { await store.applyRuntimeSettings() } }
-                            .buttonStyle(.borderedProminent)
-                            .tint(VergeColor.accent)
-                            .disabled(isBusy)
-                    }
+                    helperSection
                 }
-                .frame(maxWidth: 720)
+                .frame(maxWidth: 960)
                 .frame(maxWidth: .infinity)
 
                 if let message = store.updateStatusMessage {
@@ -148,7 +38,7 @@ struct SettingsDetailView: View {
                                 .progressViewStyle(.linear)
                         }
                     }
-                    .frame(maxWidth: 720)
+                    .frame(maxWidth: 960)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                     .background(vergeCardBackground)
@@ -163,6 +53,143 @@ struct SettingsDetailView: View {
         .sheet(isPresented: $store.isTUNConfigPresented) {
             TUNConfigSheet(store: store)
         }
+    }
+
+    private var systemSettingsSection: some View {
+        VergeSettingsSection(title: "系统设置", symbol: "gearshape") {
+            tunRow
+            toggleRow("系统代理", $store.systemProxyEnabled) { v in
+                Task { await store.setSystemProxyEnabled(v) } }
+            Group {
+                toggleRow("系统代理守护", $store.proxyGuardEnabled) { store.setProxyGuardEnabled($0) }
+            }
+            .disabled(store.tunEnabled)
+            .opacity(store.tunEnabled ? 0.45 : 1)
+            toggleRow("开机自启", $store.launchAtLogin) { store.setLaunchAtLogin($0) }
+            toggleRow("全局快捷键", $store.hotkeysEnabled) { store.setHotkeysEnabled($0) }
+            if store.hotkeysEnabled {
+                toggleRow("全局热键（需辅助功能）", $store.globalHotkey) { store.setGlobalHotkey($0) }
+                VergeSettingsRow(title: "快捷键") {
+                    Text("⌘⇧P 启动/停止")
+                        .font(VergeTypography.mono)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var clashSettingsSection: some View {
+        VergeSettingsSection(title: "Clash 设置", symbol: "network") {
+            dnsOverwriteRow
+            toggleRow("IPv6", $store.ipv6Enabled) { _ in store.persistPreferences() }
+            VergeSettingsRow(title: "日志等级") {
+                Picker("", selection: $store.logLevel) {
+                    ForEach(LogLevel.allCases) { level in
+                        Text(level.label).tag(level)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 110)
+                .onChange(of: store.logLevel) { _, level in store.setLogLevel(level) }
+            }
+            VergeSettingsRow(title: "端口设置") {
+                TextField("", value: $store.mixedPortInput, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 96)
+            }
+            toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
+                store.persistPreferences()
+            }
+            if store.enableExternalController {
+                VergeSettingsRow(title: "控制端口") {
+                    TextField("", value: $store.controllerPortInput, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 96)
+                        .onChange(of: store.controllerPortInput) { _, _ in
+                            store.persistPreferences()
+                        }
+                }
+            }
+            coreKernelSection
+            geoDataSection
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var appearanceSettingsSection: some View {
+        VergeSettingsSection(title: "外观", symbol: "slider.horizontal.3") {
+            VergeSettingsRow(title: "主题模式") {
+                Picker("", selection: $store.appearance) {
+                    ForEach(AppAppearance.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+                .onChange(of: store.appearance) { _, _ in store.persistPreferences() }
+            }
+            VergeSettingsRow(title: "托盘图标") {
+                Picker("", selection: Binding(
+                    get: { store.menuBarIconStyle },
+                    set: { store.setMenuBarIconStyle($0) }
+                )) {
+                    ForEach(MenuBarIconStyle.allCases) { style in
+                        Text(style.label).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 120)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var advancedSettingsSection: some View {
+        VergeSettingsSection(title: "高级", symbol: "wrench.and.screwdriver") {
+            VergeSettingsChevronRow(title: "配置目录", info: true) {
+                NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
+            }
+            VergeSettingsChevronRow(title: "内核目录") {
+                NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
+            }
+            VergeSettingsChevronRow(title: "GeoData 目录") {
+                NSWorkspace.shared.open(GeoDataUpdateService.geoDirectory())
+            }
+            VergeSettingsChevronRow(title: "导出诊断信息") {
+                let url = store.exportDiagnostic()
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+            VergeSettingsRow(title: "Clash Mac 版本") {
+                Text(AppInfo.versionLabel)
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(.secondary)
+            }
+            VergeSettingsChevronRow(title: "退出") { store.requestQuit() }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var helperSection: some View {
+        VergeSettingsSection(title: "Helper & CLI", symbol: "terminal") {
+            VergeSettingsRow(title: "Helper") {
+                HStack(spacing: 8) {
+                    Text(store.helperStatus)
+                        .font(VergeTypography.caption)
+                        .foregroundStyle(.secondary)
+                    if !HelperInstaller.isInstalled() {
+                        Button("安装") { store.installHelper() }.controlSize(.small)
+                    }
+                }
+            }
+            Button("安装 clashmac 命令") { store.installCLI() }
+                .controlSize(.small)
+            Button("应用并重启内核") { Task { await store.applyRuntimeSettings() } }
+                .buttonStyle(.borderedProminent)
+                .tint(VergeColor.accent)
+                .disabled(isBusy)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var geoDataSection: some View {
