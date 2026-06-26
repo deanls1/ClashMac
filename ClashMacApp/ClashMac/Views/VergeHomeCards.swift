@@ -24,17 +24,17 @@ struct VergeHomeCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 VergeCardIcon(symbol: icon, color: iconColor)
                 Text(title)
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .font(VergeTypography.cardTitle)
                 Spacer()
                 trailing
             }
             content
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(vergeCardBackground)
     }
@@ -51,47 +51,41 @@ struct VergeHomeView: View {
             ?? store.groups.first
     }
 
+    private var isBusy: Bool {
+        if case .starting = store.coreState { return true }
+        if case .stopping = store.coreState { return true }
+        return false
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 VergePageHeader(DashboardSection.home.pageTitle) {
-                    VergeHeaderIconButton(symbol: "paintbrush", help: "主题") {
-                        store.selectedSection = .settings
-                    }
-                    VergeHeaderIconButton(symbol: "questionmark.circle", help: "帮助") { }
                     VergeHeaderIconButton(symbol: "gearshape", help: "设置") {
                         store.selectedSection = .settings
                     }
                 }
 
-                if !store.startupBanners.isEmpty {
-                    ForEach(store.startupBanners, id: \.kind) { banner in
-                        VergeStartupBanner(
-                            banner: banner,
-                            onAction: { Task { await store.actOnStartupBanner(banner) } },
-                            onDismiss: { store.dismissStartupBanner(banner.kind) }
-                        )
-                    }
+                heroSection
+
+                HStack(alignment: .top, spacing: 14) {
+                    profileCard.frame(maxWidth: .infinity)
+                    currentNodeCard.frame(maxWidth: .infinity)
                 }
 
-                HStack(alignment: .top, spacing: 16) {
-                    profileCard
-                    currentNodeCard
-                }
-
-                HStack(alignment: .top, spacing: 16) {
-                    networkCard
-                    proxyModeCard
+                HStack(alignment: .top, spacing: 14) {
+                    networkCard.frame(maxWidth: .infinity)
+                    VergeIPDualCard(
+                        direct: store.directIPInfo,
+                        proxy: store.proxyIPInfo,
+                        isLoading: store.isFetchingIP,
+                        isRunning: store.coreState.isRunning,
+                        onRefresh: { Task { await store.refreshIPInfo() } }
+                    )
+                    .frame(maxWidth: .infinity)
                 }
 
                 trafficCard
-
-                HStack(alignment: .top, spacing: 16) {
-                    websiteTestCard
-                    clashInfoCard
-                }
-
-                systemInfoCard
             }
             .padding(VergeLayout.contentPadding)
         }
@@ -102,6 +96,46 @@ struct VergeHomeView: View {
         .onChange(of: store.coreState.isRunning) { _, _ in
             Task { await store.refreshIPInfo() }
         }
+    }
+
+    private var heroSection: some View {
+        HStack(alignment: .center, spacing: 28) {
+            VergePowerButton(isRunning: store.coreState.isRunning, isBusy: isBusy) {
+                Task { await store.togglePower() }
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(store.coreState.isRunning ? "代理运行中" : "代理已停止")
+                        .font(VergeTypography.sectionTitle)
+                    if case .error(let message) = store.coreState {
+                        Text(message)
+                            .font(VergeTypography.caption)
+                            .foregroundStyle(VergeColor.danger)
+                            .lineLimit(2)
+                    } else {
+                        Text(statusSubtitle)
+                            .font(VergeTypography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                VergeModePills(store: store)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(22)
+        .background(vergeHeroBackground)
+    }
+
+    private var statusSubtitle: String {
+        if store.coreState.isRunning {
+            return store.tunEnabled ? "TUN 模式 · 端口 \(store.mixedPort)" : "系统代理 · 端口 \(store.mixedPort)"
+        }
+        if store.version == "—" {
+            return "请先在设置中下载 Mihomo 内核"
+        }
+        return "内核 \(store.coreVersionLabel) · 点击左侧按钮启动"
     }
 
     private var profileCard: some View {
@@ -125,7 +159,7 @@ struct VergeHomeView: View {
                         .foregroundStyle(.secondary)
                 }
                 Text("更新时间: \(store.activeProfile?.updatedAt.formatted(date: .abbreviated, time: .shortened) ?? "—")")
-                    .font(.caption)
+                    .font(VergeTypography.caption)
                     .foregroundStyle(.tertiary)
             }
         }
@@ -148,7 +182,7 @@ struct VergeHomeView: View {
                             Text(flag).font(.title3)
                         }
                         Text(node)
-                            .font(.subheadline.weight(.semibold))
+                            .font(VergeTypography.bodyMedium)
                     }
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,7 +210,7 @@ struct VergeHomeView: View {
     private func pickerRow<C: View>(_ label: String, selection: Binding<String>, @ViewBuilder content: () -> C) -> some View {
         HStack {
             Text(label)
-                .font(.caption)
+                .font(VergeTypography.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 48, alignment: .leading)
             Picker("", selection: selection, content: content)
@@ -204,7 +238,7 @@ struct VergeHomeView: View {
                         Image(systemName: "info.circle.fill")
                             .foregroundStyle(VergeColor.accent)
                         Text("TUN 模式已启用，将接管系统流量")
-                            .font(.caption)
+                            .font(VergeTypography.caption)
                             .foregroundStyle(VergeColor.accent)
                     }
                     .padding(12)
@@ -222,7 +256,7 @@ struct VergeHomeView: View {
                     Image(systemName: store.coreState.isRunning ? "play.circle.fill" : "pause.circle")
                         .foregroundStyle(VergeColor.running)
                     Text(store.tunEnabled ? "虚拟网卡模式" : "系统代理")
-                        .font(.subheadline)
+                        .font(VergeTypography.bodyMedium)
                     Button { store.isTUNConfigPresented = true } label: {
                         Image(systemName: "gearshape")
                             .font(.caption)
@@ -244,9 +278,9 @@ struct VergeHomeView: View {
     private func networkModeButton(_ title: String, _ active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
+                .font(VergeTypography.captionMedium)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
                 .background {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(active ? VergeColor.accent : VergeColor.cardFill)
@@ -258,31 +292,6 @@ struct VergeHomeView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(active ? Color.white : Color.secondary)
-    }
-
-    private var proxyModeCard: some View {
-        VergeHomeCard(icon: "arrow.triangle.branch", iconColor: VergeColor.accent, title: "代理模式") {
-            VStack(alignment: .leading, spacing: 12) {
-                VergeModePills(store: store)
-                Text(modeDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(VergeColor.surface)
-                    }
-            }
-        }
-    }
-
-    private var modeDescription: String {
-        switch store.mode {
-        case .rule: "按照规则文件分流，国内直连、国外走代理"
-        case .global: "所有流量走代理"
-        case .direct: "所有流量直连"
-        }
     }
 
     private var trafficCard: some View {
@@ -297,7 +306,7 @@ struct VergeHomeView: View {
                             .frame(height: 128)
                             .overlay {
                                 Text("启动后显示流量曲线")
-                                    .font(.caption)
+                                    .font(VergeTypography.caption)
                                     .foregroundStyle(.tertiary)
                             }
                     }
@@ -318,82 +327,10 @@ struct VergeHomeView: View {
                     VergeMiniStat(title: "活跃连接", value: "\(store.connections.count)", color: VergeColor.running, symbol: "link")
                     VergeMiniStat(title: "上传量", value: store.trafficTotals.uploadFormatted, color: VergeColor.upload, symbol: "icloud.and.arrow.up")
                     VergeMiniStat(title: "下载量", value: store.trafficTotals.downloadFormatted, color: VergeColor.download, symbol: "icloud.and.arrow.down")
-                    VergeMiniStat(title: "内核占用", value: "—", color: .secondary, symbol: "memorychip")
+                    VergeMiniStat(title: "规则数量", value: "\(store.rules.count)", color: .secondary, symbol: "list.bullet")
                 }
             }
         }
-    }
-
-    private var websiteTestCard: some View {
-        VergeHomeCard(icon: "antenna.radiowaves.left.and.right", iconColor: VergeColor.accent, title: "网站测试") {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
-                VergeWebsiteTestTile(name: "Apple", symbol: "applelogo", tint: .primary) {
-                    Task { await store.refreshIPInfo() }
-                }
-                VergeWebsiteTestTile(name: "GitHub", symbol: "chevron.left.forwardslash.chevron.right", tint: .primary) {
-                    Task { await store.refreshIPInfo() }
-                }
-                VergeWebsiteTestTile(name: "Google", symbol: "g.circle.fill", tint: VergeColor.download) {
-                    Task { await store.refreshIPInfo() }
-                }
-                VergeWebsiteTestTile(name: "YouTube", symbol: "play.rectangle.fill", tint: VergeColor.danger) {
-                    Task { await store.refreshIPInfo() }
-                }
-            }
-        }
-    }
-
-    private var clashInfoCard: some View {
-        VergeHomeCard(icon: "doc.text", iconColor: VergeColor.upload, title: "Clash 信息") {
-            infoTable([
-                ("内核版本", store.version),
-                ("系统代理地址", "127.0.0.1:\(store.mixedPort)"),
-                ("混合代理端口", "\(store.mixedPort)"),
-                ("规则数量", "\(store.rules.count)"),
-            ])
-        }
-    }
-
-    private var systemInfoCard: some View {
-        VergeHomeCard(icon: "info.circle", iconColor: VergeColor.danger, title: "系统信息") {
-            VStack(spacing: 0) {
-                infoRow("操作系统", ProcessInfo.processInfo.operatingSystemVersionString)
-                Divider().opacity(0.25).padding(.leading, 4)
-                HStack {
-                    Text("开机自启").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    VergeStatusBadge(
-                        text: store.launchAtLogin ? "已启用" : "未启用",
-                        color: store.launchAtLogin ? VergeColor.running : .secondary
-                    )
-                }
-                .padding(.vertical, 10)
-                Divider().opacity(0.25).padding(.leading, 4)
-                infoRow("运行模式", store.tunEnabled ? "TUN 模式" : "系统代理")
-                Divider().opacity(0.25).padding(.leading, 4)
-                infoRow("Clash Mac", store.version)
-            }
-        }
-    }
-
-    private func infoTable(_ rows: [(String, String)]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                infoRow(row.0, row.1)
-                if index < rows.count - 1 {
-                    Divider().opacity(0.25).padding(.leading, 4)
-                }
-            }
-        }
-    }
-
-    private func infoRow(_ key: String, _ value: String) -> some View {
-        HStack {
-            Text(key).font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).font(.caption.weight(.medium).monospacedDigit())
-        }
-        .padding(.vertical, 10)
     }
 
     private func syncSelection() {

@@ -38,7 +38,7 @@ struct VergePolicyLabel: View {
                     .foregroundStyle(VergePolicyStyle.color(for: policy))
             }
             Text(policy)
-                .font(.subheadline.weight(.medium))
+                .font(VergeTypography.captionMedium)
                 .foregroundStyle(VergePolicyStyle.color(for: policy))
         }
     }

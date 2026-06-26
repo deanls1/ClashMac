@@ -247,10 +247,13 @@ enum UnlockStatus: Equatable, Sendable, Codable {
 
 enum ByteCountFormatter {
     static func shortString(_ bytes: Int) -> String {
+        if bytes == 0 { return "0 B" }
         let formatter = Foundation.ByteCountFormatter()
         formatter.countStyle = .binary
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: Int64(bytes))
+        formatter.includesUnit = true
+        let formatted = formatter.string(fromByteCount: Int64(bytes))
+        return formatted.replacingOccurrences(of: "Zero", with: "0")
     }
 
     static func rateString(_ bytesPerSec: Int) -> String {

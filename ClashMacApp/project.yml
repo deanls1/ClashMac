@@ -12,6 +12,8 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
 
 targets:
   ClashMac:
@@ -19,7 +21,11 @@ targets:
     platform: macOS
     sources:
       - path: ClashMac
+        excludes:
+          - "Resources/**"
       - path: Shared
+    resources:
+      - path: ClashMac/Resources
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.clashmac.app
       PRODUCT_NAME: "Clash Mac"
@@ -27,7 +33,7 @@ targets:
       INFOPLIST_KEY_NSHumanReadableCopyright: "Clash Mac"
       GENERATE_INFOPLIST_FILE: YES
       ENABLE_HARDENED_RUNTIME: YES
-      OTHER_LDFLAGS: ["-lbsm"]
+      OTHER_LDFLAGS: ["-lbsm", "-lz"]
     entitlements:
       path: Config/ClashMac.entitlements
     dependencies:
@@ -35,19 +41,25 @@ targets:
         embed: true
         link: false
         copy:
-          destination: sharedSupport
-          subpath: ""
+          destination: wrapper
+          subpath: Contents/Library/LaunchServices
     copyFiles:
-      HelperPlist:
+      - name: Copy Helper Plist
         destination: wrapper
         subpath: Contents/Library/LaunchDaemons
         files:
-          - path: Config/com.clashmac.helper.plist
-      HelperBinary:
-        destination: wrapper
-        subpath: Contents/Library/LaunchServices
-        files:
-          - path: $(BUILT_PRODUCTS_DIR)/ClashMacHelper
+          - Config/com.clashmac.helper.plist
+    postBuildScripts:
+      - name: Embed Helper LaunchDaemon Plist
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Config/com.clashmac.helper.plist
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(FULL_PRODUCT_NAME)/Contents/Library/LaunchDaemons/com.clashmac.helper.plist
+        script: |
+          PLIST_DST="${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}/Contents/Library/LaunchDaemons"
+          mkdir -p "${PLIST_DST}"
+          cp "${SRCROOT}/Config/com.clashmac.helper.plist" "${PLIST_DST}/"
 
   ClashMacHelper:
     type: tool

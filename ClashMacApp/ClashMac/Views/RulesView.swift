@@ -6,6 +6,9 @@ struct RulesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VergePageHeader(DashboardSection.rules.pageTitle) {
+                Text("\(store.rules.count) 条")
+                    .font(VergeTypography.captionMedium)
+                    .foregroundStyle(.secondary)
                 Button("添加规则") { store.isAddRulePresented = true }
                     .controlSize(.small)
                 Button("编辑 YAML") { store.loadRulesEditor() }
@@ -19,17 +22,28 @@ struct RulesView: View {
             )
 
             if store.filteredRules.isEmpty {
-                ContentUnavailableView("暂无规则", systemImage: "list.bullet.rectangle", description: Text("启动代理后从 Mihomo 加载"))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ContentUnavailableView {
+                    Label("暂无规则", systemImage: "list.bullet.rectangle")
+                } description: {
+                    Text(emptyDescription)
+                } actions: {
+                    if !store.coreState.isRunning {
+                        Button("启动代理") { Task { await store.start() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(VergeColor.accent)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
+                        rulesTableHeader
                         ForEach(Array(store.filteredRules.enumerated()), id: \.element.id) { offset, rule in
                             VergeRuleRow(rule: rule, displayIndex: rule.index + 1) {
                                 Task { await store.toggleRule(rule) }
                             }
                             if offset < store.filteredRules.count - 1 {
-                                Divider().opacity(0.35).padding(.leading, 48)
+                                Divider().opacity(0.3).padding(.leading, 52)
                             }
                         }
                     }
@@ -44,6 +58,28 @@ struct RulesView: View {
         }
         .onAppear { Task { await store.refreshRules() } }
     }
+
+    private var emptyDescription: String {
+        store.coreState.isRunning ? "当前没有匹配的规则" : "启动代理后从 Mihomo 加载规则"
+    }
+
+    private var rulesTableHeader: some View {
+        HStack(spacing: 0) {
+            Text("#")
+                .frame(width: 36, alignment: .trailing)
+            Text("匹配项")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("类型")
+                .frame(width: 108, alignment: .leading)
+            Text("策略")
+                .frame(width: 140, alignment: .leading)
+        }
+        .font(VergeTypography.captionMedium)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(VergeColor.surface.opacity(0.55))
+    }
 }
 
 private struct VergeRuleRow: View {
@@ -56,40 +92,29 @@ private struct VergeRuleRow: View {
         rule.payload.isEmpty ? rule.type : rule.payload
     }
 
-    private var typeLabel: String {
-        rule.type
-            .replacingOccurrences(of: "DOMAIN-SUFFIX", with: "DomainSuffix")
-            .replacingOccurrences(of: "DOMAIN", with: "Domain")
-            .replacingOccurrences(of: "IP-CIDR", with: "IPCIDR")
-            .replacingOccurrences(of: "GEOSITE", with: "GeoSite")
-            .replacingOccurrences(of: "GEOIP", with: "GeoIP")
-            .replacingOccurrences(of: "MATCH", with: "Match")
-    }
-
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text("\(displayIndex)")
-                .font(.caption.monospacedDigit())
+                .font(VergeTypography.small.monospacedDigit())
                 .foregroundStyle(.tertiary)
-                .frame(width: 28, alignment: .trailing)
+                .frame(width: 36, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(domainText)
-                    .font(.subheadline)
-                    .foregroundStyle(rule.isEnabled ? .primary : .secondary)
-                Text(typeLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(domainText)
+                .font(VergeTypography.body)
+                .foregroundStyle(rule.isEnabled ? .primary : .secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 12)
+            VergeRuleTypeBadge(type: rule.type)
+                .frame(width: 108, alignment: .leading)
 
             VergePolicyLabel(policy: rule.proxy)
+                .frame(width: 140, alignment: .leading)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(hovered ? VergeColor.surface.opacity(0.5) : Color.clear)
-        .opacity(rule.isEnabled ? 1 : 0.5)
+        .padding(.vertical, 13)
+        .background(hovered ? VergeColor.surface.opacity(0.45) : Color.clear)
+        .opacity(rule.isEnabled ? 1 : 0.45)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onToggle() }
         .onHover { hovered = $0 }
@@ -104,7 +129,7 @@ private struct VergeAddRuleSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("添加规则")
-                .font(.system(.title3, design: .rounded, weight: .bold))
+                .font(VergeTypography.sectionTitle)
 
             Picker("类型", selection: $store.newRuleType) {
                 ForEach(RuleAddType.allCases) { type in
@@ -138,7 +163,7 @@ struct RulesEditorSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Text("编辑规则 (YAML)")
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(VergeTypography.sectionTitle)
                 Spacer()
                 Button("取消") { dismiss() }
                 Button("保存并重载") {
@@ -151,7 +176,7 @@ struct RulesEditorSheet: View {
             .padding(20)
 
             TextEditor(text: $store.rulesYAML)
-                .font(.system(.body, design: .monospaced))
+                .font(VergeTypography.mono)
                 .padding(12)
                 .background(VergeColor.surface)
                 .overlay {

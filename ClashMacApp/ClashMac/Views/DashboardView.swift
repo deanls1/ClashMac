@@ -17,6 +17,7 @@ struct DashboardView: View {
                 ))
         }
         .frame(minWidth: 1000, minHeight: 680)
+        .font(VergeTypography.body)
         .preferredColorScheme(store.appearance.colorScheme)
         .background(VergeColor.canvas)
         .animation(.easeInOut(duration: 0.2), value: store.selectedSection)

@@ -83,30 +83,42 @@ enum CoreUpdateService {
         return text
     }
 
-    static func downloadAndInstall() async throws -> URL {
+    static func downloadAndInstall(onProgress: (@Sendable (Double, String) -> Void)? = nil) async throws -> URL {
         let arch = ProcessInfo.processInfo.machineHardwareName
         guard arch == "arm64" || arch == "x86_64" else { throw CoreUpdateError.unsupportedArch }
 
+        onProgress?(0.02, "正在获取发布信息…")
         let release = try await GitHubReleaseClient.fetchLatestRelease(repo: repo)
-        let prefix = arch == "arm64" ? "mihomo-darwin-arm64" : "mihomo-darwin-amd64"
-        guard let asset = release.assets.first(where: { $0.name.hasPrefix(prefix) && $0.name.hasSuffix(".gz") }) else {
+        guard let asset = pickAsset(from: release.assets, arch: arch) else {
             throw CoreUpdateError.downloadFailed
         }
 
-        let data = try await GitHubReleaseClient.downloadAsset(asset)
+        let sizeLabel = ByteCountFormatter.shortString(asset.size)
+        onProgress?(0.08, "正在下载 \(asset.name)（\(sizeLabel)）…")
+        let data = try await GitHubReleaseClient.downloadAsset(asset) { fraction in
+            let progress = 0.08 + fraction * 0.72
+            onProgress?(progress, "正在下载内核… \(Int(fraction * 100))%")
+        }
         do {
             try DownloadValidator.validateGzip(data)
         } catch {
             throw CoreUpdateError.invalidArtifact(error.localizedDescription)
         }
 
-        let decompressed = try gunzip(data)
+        onProgress?(0.84, "正在解压…")
+        let decompressed: Data
+        do {
+            decompressed = try GzipDecoder.decompress(data)
+        } catch {
+            throw CoreUpdateError.invalidArtifact("解压失败，文件可能已损坏")
+        }
         do {
             try DownloadValidator.validateMachOExecutable(decompressed)
         } catch {
             throw CoreUpdateError.invalidArtifact(error.localizedDescription)
         }
 
+        onProgress?(0.94, "正在写入…")
         let sha256 = DownloadValidator.sha256Hex(of: decompressed)
         let dir = coreDirectory()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -124,27 +136,16 @@ enum CoreUpdateService {
         let manifestData = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
         try manifestData.write(to: manifestURL(), options: .atomic)
 
+        onProgress?(1, "内核安装完成")
         return dest
     }
 
-    private static func gunzip(_ data: Data) throws -> Data {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/gunzip")
-        process.arguments = ["-c"]
-
-        let input = Pipe()
-        let output = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-
-        try process.run()
-        input.fileHandleForWriting.write(data)
-        try input.fileHandleForWriting.close()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else { throw CoreUpdateError.downloadFailed }
-        return output.fileHandleForReading.readDataToEndOfFile()
+    private static func pickAsset(from assets: [GitHubReleaseClient.ReleaseAsset], arch: String) -> GitHubReleaseClient.ReleaseAsset? {
+        let prefix = arch == "arm64" ? "mihomo-darwin-arm64" : "mihomo-darwin-amd64"
+        let candidates = assets.filter { $0.name.hasPrefix(prefix) && $0.name.hasSuffix(".gz") }
+        return candidates.first { !$0.name.contains("-go") && $0.name.contains("-v") }
+            ?? candidates.first { !$0.name.contains("-go") }
+            ?? candidates.first
     }
 }
 

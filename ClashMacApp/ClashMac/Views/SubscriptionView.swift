@@ -53,10 +53,7 @@ struct SubscriptionView: View {
             }
             .padding(.top, 40)
         } else {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 280), spacing: 14)],
-                spacing: 14
-            ) {
+            VStack(spacing: 10) {
                 ForEach(store.profiles) { profile in
                     VergeProfileCard(
                         profile: profile,
@@ -96,12 +93,16 @@ struct SubscriptionView: View {
 
     private var importBar: some View {
         HStack(spacing: 10) {
-            VergeImportField(placeholder: "订阅文件链接", text: $store.subscriptionURLInput)
+            VergeImportField(placeholder: "订阅文件链接", text: $store.subscriptionURLInput) {
+                if let text = NSPasteboard.general.string(forType: .string) {
+                    store.subscriptionURLInput = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
             Button("导入") {
                 Task { await store.importSubscription() }
             }
             .buttonStyle(.bordered)
-            .disabled(store.subscriptionURLInput.isEmpty)
+            .disabled(store.subscriptionURLInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("新建") { importLocalYAML() }
                 .buttonStyle(.borderedProminent)
                 .tint(VergeColor.accent)
@@ -151,16 +152,16 @@ private struct VergeProfileCard: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.name)
-                            .font(.headline)
+                            .font(VergeTypography.bodyMedium)
                             .lineLimit(1)
                         if let url = profile.subscriptionURL {
                             Text(URL(string: url)?.host ?? url)
-                                .font(.caption)
+                                .font(VergeTypography.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         } else {
                             Text("本地配置")
-                                .font(.caption)
+                                .font(VergeTypography.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -192,14 +193,16 @@ private struct VergeProfileCard: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background {
             RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
                 .fill(VergeColor.cardFill)
-                .shadow(color: VergeColor.shadow, radius: hovered || isActive ? 10 : 4, y: hovered || isActive ? 4 : 2)
+                .shadow(color: VergeColor.shadow.opacity(hovered || isActive ? 0.12 : 0.06), radius: hovered || isActive ? 8 : 4, y: 2)
         }
         .overlay {
             RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
-                .strokeBorder(isActive ? VergeColor.accent.opacity(0.3) : VergeColor.border, lineWidth: 0.5)
+                .strokeBorder(isActive ? VergeColor.accent.opacity(0.45) : VergeColor.border, lineWidth: isActive ? 1 : 0.5)
         }
         .scaleEffect(hovered && !isActive ? 1.008 : 1)
         .animation(.easeOut(duration: 0.15), value: hovered)

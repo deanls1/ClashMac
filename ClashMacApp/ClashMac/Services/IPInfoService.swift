@@ -79,33 +79,11 @@ enum IPInfoService {
 enum StartupCheckService {
     struct Result: Sendable {
         var missingGeoData: [String]
-        var coreMissing: Bool
-        var coreUpdateAvailable: Bool
-        var latestCoreVersion: String?
-        var localCoreVersion: String?
     }
 
-    static func check(localCoreVersion: String?) async -> Result {
+    static func check() async -> Result {
         let missing = GeoDataUpdateService.fileStatus().filter { !$0.exists }.map(\.name)
-        let hasManagedCore = CoreUpdateService.installedCoreURL() != nil
-        let hasBundledCore = CoreLocator.bundledCoreURL().map {
-            FileManager.default.isExecutableFile(atPath: $0.path)
-        } ?? false
-        let coreMissing = !hasManagedCore && !hasBundledCore && CoreLocator.discoverCoreURL() == nil
-
-        var latest: String?
-        var updateAvailable = false
-        if let status = try? await CoreUpdateService.checkForUpdate(localVersion: localCoreVersion) {
-            latest = status.remoteVersion
-            updateAvailable = status.updateAvailable && status.isInstalled
-        }
-        return Result(
-            missingGeoData: missing,
-            coreMissing: coreMissing,
-            coreUpdateAvailable: updateAvailable,
-            latestCoreVersion: latest,
-            localCoreVersion: localCoreVersion
-        )
+        return Result(missingGeoData: missing)
     }
 }
 

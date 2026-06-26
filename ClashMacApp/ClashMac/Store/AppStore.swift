@@ -76,6 +76,12 @@ final class AppStore {
     var isCheckingCore = false
     var latestCoreVersion: String?
     var coreUpdateAvailable = false
+    var coreUpdateProgress: Double = 0
+    var geoUpdateProgress: Double = 0
+    var isCheckingGeoData = false
+    var geoDataRelease: String?
+    var geoLocalRelease: String?
+    var geoMissingFiles: [String] = []
     var isUpdatingGeoData = false
     var updateStatusMessage: String?
     var isRefreshingSubscriptions = false
@@ -117,6 +123,22 @@ final class AppStore {
 
     var currentSelectedNode: String? {
         groups.flatMap(\.nodes).first(where: \.isSelected)?.name
+    }
+
+    var coreVersionLabel: String {
+        version == "—" ? "未安装" : "v\(version)"
+    }
+
+    var isCoreBannerBusy: Bool {
+        isUpdatingCore || isCheckingCore
+    }
+
+    var isGeoBannerBusy: Bool {
+        isUpdatingGeoData || isCheckingGeoData
+    }
+
+    var geoDataComplete: Bool {
+        geoMissingFiles.isEmpty && GeoDataUpdateService.fileStatus().allSatisfy(\.exists)
     }
 
     init() {
@@ -243,53 +265,98 @@ final class AppStore {
                 updateStatusMessage = "内核已是最新 v\(status.remoteVersion)"
             }
         } catch {
-            updateStatusMessage = error.localizedDescription
+            updateStatusMessage = "检查失败：\(error.localizedDescription)"
         }
     }
 
     func updateCore(restartIfRunning: Bool = true) async {
-        guard !isUpdatingCore else { return }
+        if isUpdatingCore {
+            updateStatusMessage = updateStatusMessage ?? "内核下载已在进行中…"
+            return
+        }
         isUpdatingCore = true
-        updateStatusMessage = "正在下载内核…"
-        defer { isUpdatingCore = false }
+        coreUpdateProgress = 0
+        updateStatusMessage = "准备下载内核…"
+        defer {
+            isUpdatingCore = false
+            coreUpdateProgress = 0
+        }
         let wasRunning = coreState.isRunning
         do {
-            let url = try await CoreUpdateService.downloadAndInstall()
+            let url = try await CoreUpdateService.downloadAndInstall { [weak self] progress, message in
+                Task { @MainActor in
+                    self?.coreUpdateProgress = progress
+                    self?.updateStatusMessage = message
+                }
+            }
             corePath = url.path
             version = CoreLocator.coreVersion(at: url) ?? "—"
             latestCoreVersion = try? await CoreUpdateService.latestVersion()
             coreUpdateAvailable = false
-            updateStatusMessage = "内核已更新至 v\(version)"
+            updateStatusMessage = "内核已更新至 \(coreVersionLabel)"
             if restartIfRunning && wasRunning {
                 await stop()
                 await start()
             }
         } catch {
-            updateStatusMessage = error.localizedDescription
-            coreState = .error(error.localizedDescription)
+            let detail = error.localizedDescription
+            updateStatusMessage = "内核下载失败：\(detail)"
+            if case CoreUpdateError.downloadFailed = error {
+                updateStatusMessage = "内核下载失败：未找到适配当前架构的安装包"
+            }
         }
     }
 
-    /// 首次启动时若本地没有可管理内核，自动从 GitHub 下载。
-    func ensureManagedCoreInstalled() async {
-        guard CoreUpdateService.installedCoreURL() == nil else { return }
-        guard CoreLocator.bundledCoreURL() == nil else { return }
-        await updateCore(restartIfRunning: false)
+    func checkGeoData() async {
+        guard !isCheckingGeoData else { return }
+        isCheckingGeoData = true
+        updateStatusMessage = "正在检查 GeoData…"
+        defer { isCheckingGeoData = false }
+        do {
+            let status = try await GeoDataUpdateService.checkStatus()
+            geoDataRelease = status.remoteRelease
+            geoLocalRelease = status.localRelease
+            geoMissingFiles = status.missingFiles
+            if status.isComplete {
+                let local = status.localRelease ?? "已安装"
+                updateStatusMessage = "GeoData 已就绪（\(local)）"
+            } else {
+                updateStatusMessage = "缺少 \(status.missingFiles.joined(separator: "、"))，最新 \(status.remoteRelease)"
+            }
+        } catch {
+            updateStatusMessage = "GeoData 检查失败：\(error.localizedDescription)"
+        }
     }
 
     func updateGeoData() async {
-        guard !isUpdatingGeoData else { return }
+        if isUpdatingGeoData {
+            updateStatusMessage = updateStatusMessage ?? "GeoData 下载已在进行中…"
+            return
+        }
         isUpdatingGeoData = true
-        updateStatusMessage = "正在下载 GeoData…"
-        defer { isUpdatingGeoData = false }
+        geoUpdateProgress = 0
+        updateStatusMessage = "准备下载 GeoData…"
+        defer {
+            isUpdatingGeoData = false
+            geoUpdateProgress = 0
+        }
         do {
-            try await GeoDataUpdateService.downloadAll()
-            updateStatusMessage = "GeoData 已更新"
+            try await GeoDataUpdateService.downloadAll { [weak self] progress, message in
+                Task { @MainActor in
+                    self?.geoUpdateProgress = progress
+                    self?.updateStatusMessage = message
+                }
+            }
+            let status = try await GeoDataUpdateService.checkStatus()
+            geoDataRelease = status.remoteRelease
+            geoLocalRelease = status.localRelease
+            geoMissingFiles = status.missingFiles
+            updateStatusMessage = "GeoData 已更新至 \(status.remoteRelease)"
             if coreState.isRunning {
                 try? await api.reloadConfig()
             }
         } catch {
-            updateStatusMessage = error.localizedDescription
+            updateStatusMessage = "GeoData 下载失败：\(error.localizedDescription)"
         }
     }
 
@@ -359,11 +426,6 @@ final class AppStore {
                 version = localVersion
             }
         }
-        await ensureManagedCoreInstalled()
-        if let coreURL = CoreLocator.discoverCoreURL() {
-            corePath = coreURL.path
-            version = CoreLocator.coreVersion(at: coreURL) ?? version
-        }
         await runStartupChecks()
     }
 
@@ -374,32 +436,8 @@ final class AppStore {
                 version = localVersion
             }
         }
-        let result = await StartupCheckService.check(localCoreVersion: version)
-        latestCoreVersion = result.latestCoreVersion
-        coreUpdateAvailable = result.coreUpdateAvailable
-        var banners: [StartupBanner] = []
-        if !result.missingGeoData.isEmpty {
-            banners.append(StartupBanner(
-                kind: .geoData,
-                title: "缺少 GeoData",
-                message: "缺失文件：\(result.missingGeoData.joined(separator: "、"))，可能影响规则分流"
-            ))
-        }
-        if result.coreMissing {
-            banners.append(StartupBanner(
-                kind: .coreMissing,
-                title: "未安装 Mihomo 内核",
-                message: "点击下载后可启动代理；也可在设置 → Clash 内核 中手动检查更新"
-            ))
-        }
-        if result.coreUpdateAvailable, let latest = result.latestCoreVersion {
-            banners.append(StartupBanner(
-                kind: .coreUpdate,
-                title: "发现新内核版本",
-                message: "最新 v\(latest)，当前 \(version)"
-            ))
-        }
-        startupBanners = banners.filter { !dismissedBannerKinds.contains($0.kind) }
+        geoMissingFiles = GeoDataUpdateService.fileStatus().filter { !$0.exists }.map(\.name)
+        startupBanners = []
     }
 
     func dismissStartupBanner(_ kind: StartupBanner.Kind) {

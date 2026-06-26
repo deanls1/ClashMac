@@ -58,7 +58,7 @@ struct VergePageHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text(title)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(VergeTypography.pageTitle)
             Spacer(minLength: 8)
             HStack(spacing: 6) {
                 trailing()
@@ -123,7 +123,7 @@ struct VergeStatusBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
+            .font(VergeTypography.smallMedium)
             .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -140,13 +140,13 @@ struct VergeMiniStat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: symbol)
-                .font(.caption2)
+                .font(VergeTypography.small)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .font(VergeTypography.statValue)
                 .foregroundStyle(color)
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -177,9 +177,9 @@ struct VergeWebsiteTestTile: View {
                     .foregroundStyle(tint)
             }
             Text(name)
-                .font(.caption.weight(.medium))
+                .font(VergeTypography.captionMedium)
             Button("测试", action: action)
-                .font(.caption2.weight(.medium))
+                .font(VergeTypography.smallMedium)
                 .buttonStyle(.plain)
                 .foregroundStyle(VergeColor.accent)
         }
@@ -213,7 +213,7 @@ struct VergeSidebarTrafficFooter: View {
                     .frame(height: 48)
                     .overlay {
                         Text("流量曲线")
-                            .font(.caption2)
+                            .font(VergeTypography.small)
                             .foregroundStyle(.tertiary)
                     }
             }
@@ -239,7 +239,7 @@ struct VergeSidebarTrafficFooter: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(VergeTypography.mono)
                 .foregroundStyle(color == .secondary ? Color.secondary : color)
         }
     }

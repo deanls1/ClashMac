@@ -4,10 +4,10 @@ import SwiftUI
 // MARK: - Verge-inspired design tokens
 
 enum VergeLayout {
-    static let sidebarWidth: CGFloat = 210
+    static let sidebarWidth: CGFloat = 220
     static let topBarHeight: CGFloat = 0
-    static let contentPadding: CGFloat = 24
-    static let cardRadius: CGFloat = 14
+    static let contentPadding: CGFloat = 22
+    static let cardRadius: CGFloat = 12
     static let nodeCardMinWidth: CGFloat = 148
     static let powerButtonSize: CGFloat = 120
 }
@@ -100,9 +100,19 @@ struct VergeSidebar: View {
     private var brandHeader: some View {
         HStack(spacing: 10) {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: "cat.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.primary)
+                Group {
+                    if let icon = NSApplication.shared.applicationIconImage {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .interpolation(.high)
+                    } else {
+                        Image(systemName: "cat.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text("NEW")
                     .font(.system(size: 7, weight: .heavy))
                     .foregroundStyle(.white)
@@ -113,7 +123,7 @@ struct VergeSidebar: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text("Clash Mac")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(VergeTypography.sectionTitle)
             }
             Spacer(minLength: 0)
         }
@@ -135,8 +145,8 @@ private struct VergeNavRow: View {
             HStack(spacing: 12) {
                 VergeNavIcon(section: section)
                 Text(section.label)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? VergeColor.accent : .primary.opacity(0.75))
+                    .font(isSelected ? VergeTypography.navSelected : VergeTypography.nav)
+                    .foregroundStyle(isSelected ? VergeColor.accent : .primary.opacity(0.82))
                 Spacer(minLength: 0)
                 if let badge {
                     Text(badge > 99 ? "99+" : "\(badge)")
@@ -232,10 +242,10 @@ struct VergeModePills: View {
                     Task { await store.setMode(mode) }
                 } label: {
                     Text(mode.label)
-                        .font(.system(size: 12, weight: store.mode == mode ? .semibold : .regular))
+                        .font(store.mode == mode ? VergeTypography.captionMedium : VergeTypography.caption)
                         .foregroundStyle(store.mode == mode ? Color.white : Color.secondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                         .background {
                             if store.mode == mode {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -469,7 +479,7 @@ struct VergeProxyNodeCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     Text(node.name)
-                        .font(.subheadline.weight(.semibold))
+                        .font(VergeTypography.bodyMedium)
                         .foregroundStyle(node.isAlive ? .primary : .secondary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -487,9 +497,9 @@ struct VergeProxyNodeCard: View {
                     }
                     ForEach(tags, id: \.self) { tag in
                         Text(tag)
-                            .font(.system(size: 10, weight: .medium))
+                            .font(VergeTypography.small)
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
+                            .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Capsule().fill(VergeColor.surface))
                     }
@@ -498,23 +508,33 @@ struct VergeProxyNodeCard: View {
 
                 HStack {
                     if isTesting {
-                        ProgressView().controlSize(.mini)
+                        HStack(spacing: 4) {
+                            ProgressView().controlSize(.mini)
+                            Text("测速中")
+                                .font(VergeTypography.small)
+                                .foregroundStyle(.secondary)
+                        }
                     } else if let delay = node.delay {
                         Text("\(delay) ms")
-                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .font(VergeTypography.mono)
                             .foregroundStyle(VergeColor.latency(delay))
                     } else {
-                        Text("Check")
-                            .font(.caption2.weight(.medium))
+                        Button("测速", action: onTest)
+                            .font(VergeTypography.smallMedium)
                             .foregroundStyle(VergeColor.accent)
-                            .onTapGesture { onTest() }
+                            .buttonStyle(.plain)
                     }
                     Spacer()
+                    if !node.isAlive {
+                        Text("离线")
+                            .font(VergeTypography.small)
+                            .foregroundStyle(VergeColor.danger.opacity(0.8))
+                    }
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(node.isSelected ? VergeColor.accentSoft : (hovered ? VergeColor.surfaceElevated : VergeColor.cardFill))
@@ -584,6 +604,7 @@ struct VergeSearchField: View {
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
+                .font(VergeTypography.body)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -628,7 +649,7 @@ struct VergeFilterBar: View {
         Toggle(label, isOn: isOn)
             .toggleStyle(.button)
             .help(help)
-            .font(.caption.weight(.medium))
+            .font(VergeTypography.smallMedium)
             .tint(VergeColor.accent)
     }
 }
@@ -644,9 +665,9 @@ struct VergeSegmentTabs<T: Hashable>: View {
                     withAnimation(.easeInOut(duration: 0.15)) { selection = item.0 }
                 } label: {
                     Text(item.1)
-                        .font(.caption.weight(selection == item.0 ? .semibold : .regular))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .font(selection == item.0 ? VergeTypography.captionMedium : VergeTypography.caption)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 9)
                         .background {
                             Capsule().fill(selection == item.0 ? VergeColor.accent : VergeColor.cardFill)
                         }
@@ -678,7 +699,7 @@ struct VergeSettingsSection<Content: View>: View {
                     .frame(width: 24, height: 24)
                     .background(Circle().fill(VergeColor.accentSoft))
                 Text(title)
-                    .font(.system(.subheadline, design: .rounded, weight: .bold))
+                    .font(VergeTypography.sectionTitle)
             }
             VStack(alignment: .leading, spacing: 12) {
                 content
@@ -697,7 +718,7 @@ struct VergeSettingsRow<Trailing: View>: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.subheadline)
+                .font(VergeTypography.body)
             Spacer()
             trailing
         }
@@ -713,7 +734,7 @@ struct VergeSettingsChevronRow: View {
         Button(action: action) {
             HStack {
                 HStack(spacing: 4) {
-                    Text(title).font(.subheadline)
+                    Text(title).font(VergeTypography.body)
                     if info {
                         Image(systemName: "info.circle")
                             .font(.caption)
@@ -734,26 +755,40 @@ struct VergeImportField: View {
     let placeholder: String
     @Binding var text: String
     var width: CGFloat? = nil
+    var onPaste: (() -> Void)? = nil
 
     var body: some View {
-        TextField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .frame(width: width)
-            .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(VergeColor.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(VergeColor.border, lineWidth: 1)
-                    }
+        HStack(spacing: 8) {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(VergeTypography.body)
+            if let onPaste {
+                Button(action: onPaste) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("粘贴")
             }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(width: width)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(VergeColor.surface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(VergeColor.border, lineWidth: 1)
+                }
+        }
     }
 }
 
 struct VergeStartupBanner: View {
     let banner: StartupBanner
+    var isBusy = false
     let onAction: () -> Void
     let onDismiss: () -> Void
 
@@ -762,20 +797,32 @@ struct VergeStartupBanner: View {
             Image(systemName: bannerIcon)
                 .font(.title3)
                 .foregroundStyle(VergeColor.accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(banner.title).font(.subheadline.weight(.semibold))
-                Text(banner.message).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(banner.title)
+                    .font(VergeTypography.bodyMedium)
+                Text(banner.message)
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("处理") { onAction() }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .tint(VergeColor.accent)
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                Text("下载中…")
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("处理") { onAction() }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .tint(VergeColor.accent)
+            }
             Button { onDismiss() } label: {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
+            .disabled(isBusy)
         }
         .padding(14)
         .background {

@@ -6,23 +6,117 @@ struct SettingsDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 18) {
                 VergePageHeader(DashboardSection.settings.pageTitle)
 
-                HStack(alignment: .top, spacing: 16) {
-                    leftColumn
-                    rightColumn
+                VStack(spacing: 16) {
+                    VergeSettingsSection(title: "系统设置", symbol: "gearshape") {
+                        tunRow
+                        toggleRow("系统代理", $store.systemProxyEnabled) { v in
+                            Task { await store.setSystemProxyEnabled(v) } }
+                        toggleRow("开机自启", $store.launchAtLogin) { store.setLaunchAtLogin($0) }
+                    }
+
+                    VergeSettingsSection(title: "Clash 设置", symbol: "network") {
+                        dnsOverwriteRow
+                        toggleRow("IPv6", $store.ipv6Enabled) { _ in store.persistPreferences() }
+                        VergeSettingsRow(title: "日志等级") {
+                            Picker("", selection: $store.logLevel) {
+                                ForEach(LogLevel.allCases) { level in
+                                    Text(level.label).tag(level)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 110)
+                            .onChange(of: store.logLevel) { _, level in store.setLogLevel(level) }
+                        }
+                        VergeSettingsRow(title: "端口设置") {
+                            TextField("", value: $store.mixedPortInput, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 96)
+                        }
+                        toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
+                            store.persistPreferences()
+                        }
+                        coreKernelSection
+                        geoDataSection
+                    }
+
+                    VergeSettingsSection(title: "外观", symbol: "slider.horizontal.3") {
+                        VergeSettingsRow(title: "主题模式") {
+                            Picker("", selection: $store.appearance) {
+                                ForEach(AppAppearance.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 280)
+                            .onChange(of: store.appearance) { _, _ in store.persistPreferences() }
+                        }
+                    }
+
+                    VergeSettingsSection(title: "高级", symbol: "wrench.and.screwdriver") {
+                        VergeSettingsChevronRow(title: "备份设置", info: true) { store.createBackup() }
+                        VergeSettingsChevronRow(title: "配置目录", info: true) {
+                            NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
+                        }
+                        VergeSettingsChevronRow(title: "内核目录") {
+                            NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
+                        }
+                        VergeSettingsChevronRow(title: "GeoData 目录") {
+                            NSWorkspace.shared.open(GeoDataUpdateService.geoDirectory())
+                        }
+                        VergeSettingsChevronRow(title: "导出诊断信息") {
+                            let url = store.exportDiagnostic()
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        }
+                        VergeSettingsRow(title: "Clash Mac 版本") {
+                            Text(AppInfo.versionLabel)
+                                .font(VergeTypography.mono)
+                                .foregroundStyle(.secondary)
+                        }
+                        VergeSettingsChevronRow(title: "退出") { store.requestQuit() }
+                    }
+
+                    VergeSettingsSection(title: "Helper & CLI", symbol: "terminal") {
+                        VergeSettingsRow(title: "Helper") {
+                            HStack(spacing: 8) {
+                                Text(store.helperStatus)
+                                    .font(VergeTypography.caption)
+                                    .foregroundStyle(.secondary)
+                                if !HelperInstaller.isInstalled() {
+                                    Button("安装") { store.installHelper() }.controlSize(.small)
+                                }
+                            }
+                        }
+                        Button("安装 clashmac 命令") { store.installCLI() }
+                            .controlSize(.small)
+                        Button("应用并重启内核") { Task { await store.applyRuntimeSettings() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(VergeColor.accent)
+                            .disabled(isBusy)
+                    }
                 }
-                .frame(maxWidth: 960)
+                .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
 
                 if let message = store.updateStatusMessage {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(vergeCardBackground)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(message)
+                            .font(VergeTypography.caption)
+                            .foregroundStyle(store.isUpdatingCore || store.isUpdatingGeoData ? VergeColor.accent : .secondary)
+                        if store.isUpdatingCore {
+                            ProgressView(value: max(store.coreUpdateProgress, 0.02))
+                                .progressViewStyle(.linear)
+                        } else if store.isUpdatingGeoData {
+                            ProgressView(value: max(store.geoUpdateProgress, 0.02))
+                                .progressViewStyle(.linear)
+                        }
+                    }
+                    .frame(maxWidth: 720)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(vergeCardBackground)
                 }
             }
             .padding(VergeLayout.contentPadding)
@@ -36,136 +130,86 @@ struct SettingsDetailView: View {
         }
     }
 
-    private var leftColumn: some View {
-        VStack(spacing: 16) {
-            VergeSettingsSection(title: "系统设置", symbol: "gearshape") {
-                tunRow
-                toggleRow("系统代理", $store.systemProxyEnabled) { v in Task { await store.setSystemProxyEnabled(v) } }
-                toggleRow("开机自启", $store.launchAtLogin) { store.setLaunchAtLogin($0) }
+    private var geoDataSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VergeSettingsRow(title: "本地状态") {
+                Text(store.geoDataComplete ? "已就绪" : "缺少 \(store.geoMissingFiles.count) 个文件")
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(store.geoDataComplete ? VergeColor.running : .orange)
             }
-
-            VergeSettingsSection(title: "Clash 设置", symbol: "network") {
-                dnsOverwriteRow
-                toggleRow("IPv6", $store.ipv6Enabled) { _ in store.persistPreferences() }
-                VergeSettingsRow(title: "日志等级") {
-                    Picker("", selection: $store.logLevel) {
-                        ForEach(LogLevel.allCases) { level in
-                            Text(level.label).tag(level)
-                        }
+            if let local = store.geoLocalRelease {
+                VergeSettingsRow(title: "当前版本") {
+                    Text(local)
+                        .font(VergeTypography.mono)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let latest = store.geoDataRelease {
+                VergeSettingsRow(title: "最新版本") {
+                    Text(latest)
+                        .font(VergeTypography.mono)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if !store.geoMissingFiles.isEmpty {
+                Text("缺失：\(store.geoMissingFiles.joined(separator: "、"))")
+                    .font(VergeTypography.small)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                Button {
+                    Task { await store.checkGeoData() }
+                } label: {
+                    if store.isCheckingGeoData {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("检查状态")
                     }
-                    .labelsHidden()
-                    .frame(width: 100)
-                    .onChange(of: store.logLevel) { _, level in store.setLogLevel(level) }
                 }
-                VergeSettingsRow(title: "端口设置") {
-                    TextField("", value: $store.mixedPortInput, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 88)
-                }
-                toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
-                    store.persistPreferences()
-                }
-                coreKernelSection
-                VergeSettingsChevronRow(title: "更新 GeoData") {
-                    Task { await store.updateGeoData() }
-                }
-            }
-
-            VergeSettingsSection(title: "外观", symbol: "slider.horizontal.3") {
-                VergeSettingsRow(title: "主题模式") {
-                    Picker("", selection: $store.appearance) {
-                        ForEach(AppAppearance.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
-                    .onChange(of: store.appearance) { _, _ in store.persistPreferences() }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var rightColumn: some View {
-        VStack(spacing: 16) {
-            VergeSettingsSection(title: "高级", symbol: "wrench.and.screwdriver") {
-                VergeSettingsChevronRow(title: "备份设置", info: true) { store.createBackup() }
-                VergeSettingsChevronRow(title: "配置目录", info: true) {
-                    NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
-                }
-                VergeSettingsChevronRow(title: "内核目录") {
-                    NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
-                }
-                VergeSettingsChevronRow(title: "退出") { store.requestQuit() }
-
-                Divider().opacity(0.3)
+                .disabled(store.isCheckingGeoData || store.isUpdatingGeoData)
 
                 Button {
-                    let url = store.exportDiagnostic()
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                    Task { await store.updateGeoData() }
                 } label: {
-                    HStack {
-                        Label("导出诊断信息", systemImage: "doc.on.doc")
-                        Spacer()
-                    }
-                    .font(.subheadline)
-                }
-                .buttonStyle(.plain)
-
-                HStack {
-                    Label("Clash Mac 版本", systemImage: "doc.on.doc")
-                    Spacer()
-                    Text(store.version).font(.caption.monospaced())
-                }
-                .font(.subheadline)
-            }
-
-            VergeSettingsSection(title: "Helper & CLI", symbol: "terminal") {
-                VergeSettingsRow(title: "Helper") {
-                    HStack(spacing: 8) {
-                        Text(store.helperStatus).font(.caption)
-                        if !HelperInstaller.isInstalled() {
-                            Button("安装") { store.installHelper() }.controlSize(.small)
-                        }
+                    if store.isUpdatingGeoData {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(store.geoDataComplete ? "重新下载" : "下载 GeoData")
                     }
                 }
-                Button("安装 clashmac 命令") { store.installCLI() }
-                    .controlSize(.small)
-                Button("应用并重启内核") { Task { await store.applyRuntimeSettings() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(VergeColor.accent)
-                    .disabled(isBusy)
+                .buttonStyle(.borderedProminent)
+                .tint(VergeColor.accent)
+                .disabled(store.isUpdatingGeoData || store.isCheckingGeoData)
             }
+            .controlSize(.regular)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var coreKernelSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             VergeSettingsRow(title: "当前版本") {
-                Text(store.version)
-                    .font(.caption.monospaced())
+                Text(store.coreVersionLabel)
+                    .font(VergeTypography.mono)
                     .foregroundStyle(.secondary)
             }
             if let latest = store.latestCoreVersion {
                 VergeSettingsRow(title: "最新版本") {
                     HStack(spacing: 6) {
                         Text("v\(latest)")
-                            .font(.caption.monospaced())
+                            .font(VergeTypography.mono)
                             .foregroundStyle(.secondary)
                         if store.coreUpdateAvailable {
                             Text("有更新")
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Color.orange.opacity(0.15)))
+                                .font(VergeTypography.smallMedium)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.orange.opacity(0.14)))
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Button {
                     Task { await store.checkCoreUpdate() }
                 } label: {
@@ -190,11 +234,11 @@ struct SettingsDetailView: View {
                 .tint(VergeColor.accent)
                 .disabled(store.isUpdatingCore || store.isCheckingCore)
             }
-            .controlSize(.small)
+            .controlSize(.regular)
 
             if !store.corePath.isEmpty && store.corePath != "—" {
                 Text(store.corePath)
-                    .font(.caption2)
+                    .font(VergeTypography.small)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)

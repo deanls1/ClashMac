@@ -83,6 +83,9 @@ struct MenuBarTrayMenu: View {
             Button("Profile 目录") {
                 NSWorkspace.shared.open(ProfileStore.profilesDirectory())
             }
+            Button("GeoData 目录") {
+                NSWorkspace.shared.open(GeoDataUpdateService.geoDirectory())
+            }
             Button("内核目录") {
                 NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
             }
@@ -98,6 +101,12 @@ struct MenuBarTrayMenu: View {
             }
             Button("下载/更新内核") {
                 Task { await store.updateCore() }
+            }
+            Button("检查 GeoData") {
+                Task { await store.checkGeoData() }
+            }
+            Button("下载 GeoData") {
+                Task { await store.updateGeoData() }
             }
             Button("导出诊断信息") {
                 let url = store.exportDiagnostic()

@@ -58,6 +58,7 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum AppQuit {
+    @MainActor
     static func request() {
         NSApp.terminate(nil)
     }

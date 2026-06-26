@@ -70,7 +70,7 @@ struct LogsView: View {
     private func filterToggle(_ label: String, isOn: Binding<Bool>) -> some View {
         Toggle(label, isOn: isOn)
             .toggleStyle(.button)
-            .font(.caption.weight(.medium))
+            .font(VergeTypography.smallMedium)
     }
 }
 
@@ -87,17 +87,17 @@ private struct VergeLogBlock: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(Self.timestampFormatter.string(from: entry.timestamp))
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(VergeTypography.small)
                     .foregroundStyle(.tertiary)
                 Text(entry.level.label.uppercased())
-                    .font(.system(size: 10, weight: .bold))
+                    .font(VergeTypography.smallMedium)
                     .foregroundStyle(levelColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(levelColor.opacity(0.12)))
             }
             Text(entry.message)
-                .font(.system(size: 12, design: .monospaced))
+                .font(VergeTypography.mono)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

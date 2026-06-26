@@ -4,6 +4,11 @@ struct UnlockView: View {
     @Bindable var store: AppStore
     @State private var showAddForm = false
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14),
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
             VergePageHeader(DashboardSection.unlock.pageTitle) {
@@ -16,28 +21,36 @@ struct UnlockView: View {
                 Button {
                     Task { await store.runUnlockTests() }
                 } label: {
-                    Label("测试全部", systemImage: "arrow.clockwise")
+                    Text("测试全部")
                 }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
                 .tint(VergeColor.accent)
-                .disabled(!store.coreState.isRunning)
+                .disabled(!store.coreState.isRunning || store.unlockTargets.contains { $0.status == .testing })
             }
 
             ScrollView {
-                VStack(spacing: 16) {
-                    if showAddForm {
-                        addForm
+                VStack(spacing: 14) {
+                    if !store.coreState.isRunning {
+                        HStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                            Text("请先启动代理后再进行解锁测试")
+                                .font(VergeTypography.body)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("启动代理") { Task { await store.start() } }
+                                .controlSize(.small)
+                                .buttonStyle(.borderedProminent)
+                                .tint(VergeColor.accent)
+                        }
+                        .padding(14)
+                        .background(vergeCardBackground)
                     }
 
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 14),
-                            GridItem(.flexible(), spacing: 14),
-                            GridItem(.flexible(), spacing: 14),
-                        ],
-                        spacing: 14
-                    ) {
+                    if showAddForm { addForm }
+
+                    LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(store.unlockTargets) { target in
                             VergeUnlockCard(target: target) {
                                 Task { await store.runSingleUnlockTest(target) }
@@ -46,6 +59,7 @@ struct UnlockView: View {
                     }
                 }
                 .padding(VergeLayout.contentPadding)
+                .frame(maxWidth: 900)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -75,108 +89,87 @@ private struct VergeUnlockCard: View {
     @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(VergeColor.accentSoft.opacity(0.6))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: target.symbol)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(VergeColor.accent)
+                }
+
                 Text(target.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(2)
-                Spacer()
+                    .font(VergeTypography.bodyMedium)
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
                 Button(action: onTest) {
                     Image(systemName: "arrow.clockwise")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(VergeColor.accent)
-                        .padding(6)
+                        .frame(width: 28, height: 28)
                         .background(Circle().fill(VergeColor.accentSoft))
                 }
                 .buttonStyle(.plain)
                 .disabled(target.status == .testing)
             }
 
+            Spacer(minLength: 14)
+
             HStack(spacing: 8) {
-                statusBadge
+                VergeUnlockStatusBadge(status: target.status)
                 if let code = target.regionCode {
                     regionBadge(code)
                 }
                 Spacer()
             }
 
-            Spacer(minLength: 0)
-
             if let tested = target.lastTestedAt {
                 Text(tested.formatted(date: .numeric, time: .standard))
-                    .font(.caption2)
+                    .font(VergeTypography.small)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 10)
             }
         }
         .padding(16)
-        .frame(minHeight: 120, alignment: .topLeading)
+        .frame(minHeight: 118, alignment: .topLeading)
         .background {
             RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
                 .fill(VergeColor.cardFill)
-                .shadow(color: hovered ? VergeColor.shadow : VergeColor.shadow.opacity(0.3), radius: hovered ? 12 : 6, y: hovered ? 4 : 2)
+                .shadow(color: VergeColor.shadow.opacity(hovered ? 0.14 : 0.06), radius: hovered ? 10 : 5, y: hovered ? 3 : 2)
         }
         .overlay {
             RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
-                .strokeBorder(hovered ? VergeColor.accent.opacity(0.25) : VergeColor.border, lineWidth: 0.5)
+                .strokeBorder(
+                    statusBorderColor.opacity(hovered ? 0.35 : 0.2),
+                    lineWidth: 0.5
+                )
         }
-        .scaleEffect(hovered ? 1.01 : 1)
-        .animation(.easeOut(duration: 0.15), value: hovered)
         .onHover { hovered = $0 }
     }
 
-    @ViewBuilder
-    private var statusBadge: some View {
+    private var statusBorderColor: Color {
         switch target.status {
-        case .testing:
-            HStack(spacing: 4) {
-                ProgressView().controlSize(.small)
-                Text("测试中").font(.caption.weight(.medium))
-            }
-            .foregroundStyle(VergeColor.accent)
-        default:
-            HStack(spacing: 4) {
-                Image(systemName: badgeIcon)
-                    .font(.caption2)
-                Text(target.status.vergeBadgeTitle)
-                    .font(.caption.weight(.semibold))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(badgeColor.opacity(0.12)))
-            .foregroundStyle(badgeColor)
+        case .unlocked: VergeColor.running
+        case .locked, .failed: VergeColor.danger
+        default: VergeColor.border
         }
     }
 
     private func regionBadge(_ code: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             Text(regionFlag(code))
-            Text(code)
-                .font(.caption.weight(.semibold))
+            Text(code.uppercased())
+                .font(VergeTypography.captionMedium)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
         .background(Capsule().fill(VergeColor.surface))
         .foregroundStyle(.secondary)
-    }
-
-    private var badgeColor: Color {
-        switch target.status {
-        case .unlocked: VergeColor.running
-        case .locked, .failed: VergeColor.danger
-        case .idle: .secondary
-        case .testing: VergeColor.accent
-        }
-    }
-
-    private var badgeIcon: String {
-        switch target.status {
-        case .unlocked: "checkmark"
-        case .locked: "xmark"
-        case .failed: "questionmark"
-        case .idle: "minus"
-        case .testing: "arrow.clockwise"
-        }
     }
 
     private func regionFlag(_ code: String) -> String {
