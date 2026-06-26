@@ -56,26 +56,6 @@ enum ProxyGroupSortKey: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum ConnectionSortKey: String, CaseIterable, Identifiable, Sendable {
-    case downloadSpeed
-    case uploadSpeed
-    case download
-    case upload
-    case host
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .downloadSpeed: "下载速度"
-        case .uploadSpeed: "上传速度"
-        case .download: "下载量"
-        case .upload: "上传量"
-        case .host: "主机"
-        }
-    }
-}
-
 extension DashboardSection {
     @MainActor
     func badgeCount(from store: AppStore) -> Int? {

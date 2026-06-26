@@ -384,6 +384,16 @@ struct VergeHomeView: View {
                     infoTile(title: "混合端口", value: store.coreState.isRunning ? "\(store.mixedPort)" : "—", symbol: "number")
                     infoTile(title: "规则", value: store.coreState.isRunning ? "\(store.rules.count)" : "—", symbol: "list.bullet.rectangle")
                     infoTile(title: "运行时长", value: store.coreUptimeLabel, symbol: "clock")
+                    infoTile(
+                        title: "内存",
+                        value: store.coreState.isRunning ? store.coreMemoryLabel : "—",
+                        symbol: "memorychip"
+                    )
+                    infoTile(
+                        title: "连接",
+                        value: store.coreState.isRunning ? "\(store.connections.count)" : "—",
+                        symbol: "arrow.left.arrow.right"
+                    )
                 }
             }
         }

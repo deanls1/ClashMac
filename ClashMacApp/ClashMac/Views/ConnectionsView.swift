@@ -4,14 +4,17 @@ struct ConnectionsView: View {
     @Bindable var store: AppStore
     @State private var tableSelection = Set<ConnectionItem.ID>()
     @State private var detailItem: ConnectionItem?
+    @State private var sortOrder: [KeyPathComparator<ConnectionItem>] = [
+        KeyPathComparator(\.downloadSpeed, order: .reverse)
+    ]
 
-    private var displayList: [ConnectionItem] {
-        store.connectionTab == .active ? store.filteredConnections : store.filteredClosedConnections
+    private var filteredList: [ConnectionItem] {
+        store.connectionTab == .active ? store.searchedConnections : store.searchedClosedConnections
     }
 
     private var selectedItem: ConnectionItem? {
         guard let id = tableSelection.first else { return nil }
-        return displayList.first { $0.id == id }
+        return filteredList.first { $0.id == id }
     }
 
     var body: some View {
@@ -45,26 +48,16 @@ struct ConnectionsView: View {
                     ]
                 )
 
-                Menu {
-                    Picker("排序", selection: $store.connectionSortKey) {
-                        ForEach(ConnectionSortKey.allCases) { key in
-                            Text(key.label).tag(key)
-                        }
-                    }
-                    Toggle("降序", isOn: $store.connectionSortDescending)
-                } label: {
-                    Label(store.connectionSortKey.label, systemImage: "arrow.up.arrow.down")
-                        .font(VergeTypography.caption)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+                Text("点击列头排序")
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(.tertiary)
 
                 Spacer()
             }
             .padding(.horizontal, VergeLayout.contentPadding)
             .padding(.bottom, 10)
 
-            if displayList.isEmpty {
+            if filteredList.isEmpty {
                 connectionsEmptyState
             } else {
                 connectionsTable
@@ -84,8 +77,8 @@ struct ConnectionsView: View {
     }
 
     private var connectionsTable: some View {
-        Table(displayList, selection: $tableSelection) {
-            TableColumn("主机") { item in
+        Table(filteredList, selection: $tableSelection, sortOrder: $sortOrder) {
+            TableColumn("主机", value: \.host) { item in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.host)
                         .font(VergeTypography.bodyMedium)
@@ -100,40 +93,40 @@ struct ConnectionsView: View {
             }
             .width(min: 140, ideal: 220)
 
-            TableColumn("下载量") { item in
+            TableColumn("下载量", value: \.download) { item in
                 Text(item.downloadFormatted)
                     .font(VergeTypography.mono)
                     .foregroundStyle(VergeColor.download)
             }
             .width(min: 72, ideal: 100)
 
-            TableColumn("上传量") { item in
+            TableColumn("上传量", value: \.upload) { item in
                 Text(item.uploadFormatted)
                     .font(VergeTypography.mono)
                     .foregroundStyle(VergeColor.upload)
             }
             .width(min: 72, ideal: 100)
 
-            TableColumn("下载速度") { item in
+            TableColumn("下载速度", value: \.downloadSpeed) { item in
                 Text(item.downloadSpeedFormatted)
                     .font(VergeTypography.mono)
                     .foregroundStyle(VergeColor.download)
             }
             .width(min: 80, ideal: 110)
 
-            TableColumn("上传速度") { item in
+            TableColumn("上传速度", value: \.uploadSpeed) { item in
                 Text(item.uploadSpeedFormatted)
                     .font(VergeTypography.mono)
                     .foregroundStyle(VergeColor.upload)
             }
             .width(min: 80, ideal: 110)
 
-            TableColumn("链路") { item in
+            TableColumn("链路", value: \.chain) { item in
                 VergeChainLabel(chain: item.chain)
             }
             .width(min: 120)
 
-            TableColumn("规则") { item in
+            TableColumn("规则", value: \.rule) { item in
                 Text(item.rule)
                     .font(VergeTypography.caption)
                     .foregroundStyle(.secondary)
@@ -166,7 +159,7 @@ struct ConnectionsView: View {
             return .ignored
         }
         .contextMenu(forSelectionType: ConnectionItem.ID.self) { selection in
-            if let id = selection.first, let item = displayList.first(where: { $0.id == id }) {
+            if let id = selection.first, let item = filteredList.first(where: { $0.id == id }) {
                 Button("查看详情") { detailItem = item }
                 if store.connectionTab == .active {
                     Button("断开连接", role: .destructive) {

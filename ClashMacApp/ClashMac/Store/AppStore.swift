@@ -87,8 +87,6 @@ final class AppStore {
     var isRefreshingSubscriptions = false
     var testingNodeIDs: Set<String> = []
     var isTestingAllGroups = false
-    var connectionSortKey: ConnectionSortKey = .downloadSpeed
-    var connectionSortDescending = true
     var appearance: AppAppearance = .system
     var ipInfo: IPInfo?
     var directIPInfo: IPInfo?
@@ -197,12 +195,12 @@ final class AppStore {
         AppQuit.request()
     }
 
-    var filteredConnections: [ConnectionItem] {
-        sortConnections(filterConnections(connections))
+    var searchedConnections: [ConnectionItem] {
+        filterConnections(connections)
     }
 
-    var filteredClosedConnections: [ConnectionItem] {
-        sortConnections(filterConnections(closedConnections))
+    var searchedClosedConnections: [ConnectionItem] {
+        filterConnections(closedConnections)
     }
 
     var filteredRules: [RuleItem] {
@@ -222,24 +220,6 @@ final class AppStore {
         list.filter { item in
             let blob = "\(item.host) \(item.process) \(item.rule) \(item.chain)"
             return connectionFilterOptions.matches(blob, query: connectionFilter)
-        }
-    }
-
-    private func sortConnections(_ list: [ConnectionItem]) -> [ConnectionItem] {
-        list.sorted { lhs, rhs in
-            switch connectionSortKey {
-            case .downloadSpeed:
-                return connectionSortDescending ? lhs.downloadSpeed > rhs.downloadSpeed : lhs.downloadSpeed < rhs.downloadSpeed
-            case .uploadSpeed:
-                return connectionSortDescending ? lhs.uploadSpeed > rhs.uploadSpeed : lhs.uploadSpeed < rhs.uploadSpeed
-            case .download:
-                return connectionSortDescending ? lhs.download > rhs.download : lhs.download < rhs.download
-            case .upload:
-                return connectionSortDescending ? lhs.upload > rhs.upload : lhs.upload < rhs.upload
-            case .host:
-                let cmp = lhs.host.localizedStandardCompare(rhs.host)
-                return connectionSortDescending ? cmp == .orderedDescending : cmp == .orderedAscending
-            }
         }
     }
 
