@@ -34,7 +34,7 @@ final class CoreProcessController: @unchecked Sendable {
         return process?.isRunning == true
     }
 
-    func start(coreURL: URL, configURL: URL, workDirectory: URL) throws {
+    func start(coreURL: URL, configURL: URL, workDirectory: URL, runtime: RuntimeConfig) throws {
         lock.lock()
         defer { lock.unlock() }
 
@@ -43,10 +43,26 @@ final class CoreProcessController: @unchecked Sendable {
         }
 
         try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+        WorkDirectorySanitizer.prepareForUserCore(in: workDirectory)
 
         let proc = Process()
         proc.executableURL = coreURL
-        proc.arguments = ["-f", configURL.path, "-d", workDirectory.path]
+        var args = [
+            "-f", configURL.path,
+            "-d", workDirectory.path,
+            "-ext-ctl-unix", runtime.controllerUnixPath,
+            "-secret", runtime.secret,
+        ]
+        if runtime.enableExternalController {
+            args.append(contentsOf: [
+                "-ext-ctl",
+                RuntimeConfigBuilder.guardedControllerAddress(
+                    host: runtime.controllerHost,
+                    port: runtime.controllerPort
+                ),
+            ])
+        }
+        proc.arguments = args
         proc.currentDirectoryURL = workDirectory
 
         var env = ProcessInfo.processInfo.environment

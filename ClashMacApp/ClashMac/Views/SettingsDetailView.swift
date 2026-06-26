@@ -14,7 +14,21 @@ struct SettingsDetailView: View {
                         tunRow
                         toggleRow("系统代理", $store.systemProxyEnabled) { v in
                             Task { await store.setSystemProxyEnabled(v) } }
+                        Group {
+                            toggleRow("系统代理守护", $store.proxyGuardEnabled) { store.setProxyGuardEnabled($0) }
+                        }
+                        .disabled(store.tunEnabled)
+                        .opacity(store.tunEnabled ? 0.45 : 1)
                         toggleRow("开机自启", $store.launchAtLogin) { store.setLaunchAtLogin($0) }
+                        toggleRow("全局快捷键", $store.hotkeysEnabled) { store.setHotkeysEnabled($0) }
+                        if store.hotkeysEnabled {
+                            toggleRow("全局热键（需辅助功能）", $store.globalHotkey) { store.setGlobalHotkey($0) }
+                            VergeSettingsRow(title: "快捷键") {
+                                Text("⌘⇧P 启动/停止")
+                                    .font(VergeTypography.mono)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
 
                     VergeSettingsSection(title: "Clash 设置", symbol: "network") {
@@ -38,6 +52,16 @@ struct SettingsDetailView: View {
                         toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
                             store.persistPreferences()
                         }
+                        if store.enableExternalController {
+                            VergeSettingsRow(title: "控制端口") {
+                                TextField("", value: $store.controllerPortInput, format: .number)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 96)
+                                    .onChange(of: store.controllerPortInput) { _, _ in
+                                        store.persistPreferences()
+                                    }
+                            }
+                        }
                         coreKernelSection
                         geoDataSection
                     }
@@ -53,10 +77,21 @@ struct SettingsDetailView: View {
                             .frame(maxWidth: 280)
                             .onChange(of: store.appearance) { _, _ in store.persistPreferences() }
                         }
+                        VergeSettingsRow(title: "托盘图标") {
+                            Picker("", selection: Binding(
+                                get: { store.menuBarIconStyle },
+                                set: { store.setMenuBarIconStyle($0) }
+                            )) {
+                                ForEach(MenuBarIconStyle.allCases) { style in
+                                    Text(style.label).tag(style)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 120)
+                        }
                     }
 
                     VergeSettingsSection(title: "高级", symbol: "wrench.and.screwdriver") {
-                        VergeSettingsChevronRow(title: "备份设置", info: true) { store.createBackup() }
                         VergeSettingsChevronRow(title: "配置目录", info: true) {
                             NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
                         }

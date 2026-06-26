@@ -71,6 +71,20 @@ struct ProxyGridView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+
+            Button {
+                Task { await store.testAllGroups() }
+            } label: {
+                if store.isTestingAllGroups {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("全部测速", systemImage: "speedometer")
+                        .font(VergeTypography.caption)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!store.coreState.isRunning || store.isTestingAllGroups)
         }
         .padding(12)
         .background(vergeCardBackground)
@@ -167,6 +181,19 @@ private struct VergeProxyGroupBlock: View {
                 }
                 .buttonStyle(.plain)
                 .help("测速整组")
+
+                Button {
+                    Task { await store.selectFastest(in: group) }
+                } label: {
+                    Image(systemName: "bolt.fill")
+                        .font(.body)
+                        .foregroundStyle(VergeColor.accent)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(VergeColor.accentSoft))
+                }
+                .buttonStyle(.plain)
+                .help("自动选择最快节点")
+                .disabled(!store.coreState.isRunning)
             }
 
             if isExpanded {

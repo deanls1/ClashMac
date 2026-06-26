@@ -60,8 +60,13 @@ struct TunnelHelperClient: Sendable {
     var isInstalled: Bool { HelperInstaller.isInstalled() }
 
     private func makeProxy() -> HelperProtocol? {
+        guard HelperInstaller.isBundled() else { return nil }
+        guard HelperInstaller.isInstalled() else { return nil }
+
         let connection = NSXPCConnection(machServiceName: HelperConstants.machServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: HelperProtocol.self)
+        connection.invalidationHandler = {}
+        connection.interruptionHandler = {}
         connection.resume()
         return connection.remoteObjectProxyWithErrorHandler { _ in } as? HelperProtocol
     }

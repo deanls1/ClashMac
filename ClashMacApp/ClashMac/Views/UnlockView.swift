@@ -52,9 +52,12 @@ struct UnlockView: View {
 
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(store.unlockTargets) { target in
-                            VergeUnlockCard(target: target) {
-                                Task { await store.runSingleUnlockTest(target) }
-                            }
+                            VergeUnlockCard(
+                                target: target,
+                                canDelete: store.isCustomUnlockTarget(target),
+                                onTest: { Task { await store.runSingleUnlockTest(target) } },
+                                onDelete: { store.removeUnlockTarget(target) }
+                            )
                         }
                     }
                 }
@@ -85,7 +88,9 @@ struct UnlockView: View {
 
 private struct VergeUnlockCard: View {
     let target: UnlockTarget
+    let canDelete: Bool
     let onTest: () -> Void
+    let onDelete: () -> Void
     @State private var hovered = false
 
     var body: some View {
@@ -105,6 +110,17 @@ private struct VergeUnlockCard: View {
                     .lineLimit(1)
 
                 Spacer(minLength: 4)
+
+                if canDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(VergeColor.danger)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(VergeColor.danger.opacity(0.1)))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button(action: onTest) {
                     Image(systemName: "arrow.clockwise")

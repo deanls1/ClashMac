@@ -52,7 +52,12 @@ final class HelperService: NSObject, HelperProtocol {
             try FileManager.default.createDirectory(atPath: workDirectory, withIntermediateDirectories: true)
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: corePath)
-            proc.arguments = ["-f", configPath, "-d", workDirectory]
+            proc.arguments = [
+                "-f", configPath,
+                "-d", workDirectory,
+                "-ext-ctl-unix", Self.unixControllerPath(from: configPath),
+                "-secret", secret,
+            ]
             proc.currentDirectoryURL = URL(fileURLWithPath: workDirectory)
             try proc.run()
             coreProcess = proc
@@ -101,6 +106,27 @@ final class HelperService: NSObject, HelperProtocol {
             #endif
         }
         return egid == trusted
+    }
+
+    private static func defaultUnixSocketPath() -> String {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return base.appendingPathComponent("ClashMac/ipc/clashmac-mihomo.sock").path
+    }
+
+    private static func unixControllerPath(from configPath: String) -> String {
+        guard let text = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            return defaultUnixSocketPath()
+        }
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("external-controller-unix:") else { continue }
+            var raw = trimmed.dropFirst("external-controller-unix:".count)
+                .trimmingCharacters(in: .whitespaces)
+            raw = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            let path = String(raw)
+            return path.isEmpty ? defaultUnixSocketPath() : path
+        }
+        return defaultUnixSocketPath()
     }
 
     private static func configMatchesSecret(at configPath: String, secret: String) -> Bool {

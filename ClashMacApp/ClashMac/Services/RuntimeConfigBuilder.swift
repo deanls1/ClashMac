@@ -71,7 +71,7 @@ enum RuntimeConfigBuilder {
 
         var dnsBlock: String
         if runtime.dnsOverwriteEnabled {
-            dnsBlock = runtime.dnsConfig.yamlBlock()
+            dnsBlock = runtime.dnsConfig.yamlBlock(includePrivilegedListen: runtime.tunEnabled)
             if let hosts = runtime.dnsConfig.hostsYAMLBlock() {
                 dnsBlock += "\n\n" + hosts
             }

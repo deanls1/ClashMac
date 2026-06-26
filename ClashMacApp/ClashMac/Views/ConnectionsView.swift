@@ -43,6 +43,21 @@ struct ConnectionsView: View {
                         (.closed, "已关闭 \(store.closedConnections.count)")
                     ]
                 )
+
+                Menu {
+                    Picker("排序", selection: $store.connectionSortKey) {
+                        ForEach(ConnectionSortKey.allCases) { key in
+                            Text(key.label).tag(key)
+                        }
+                    }
+                    Toggle("降序", isOn: $store.connectionSortDescending)
+                } label: {
+                    Label(store.connectionSortKey.label, systemImage: "arrow.up.arrow.down")
+                        .font(VergeTypography.caption)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+
                 Spacer()
             }
             .padding(.horizontal, VergeLayout.contentPadding)

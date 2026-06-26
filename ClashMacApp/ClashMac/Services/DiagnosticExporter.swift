@@ -1,49 +1,5 @@
 import Foundation
 
-enum ConfigBackupService {
-    enum BackupError: LocalizedError {
-        case archiveFailed
-
-        var errorDescription: String? {
-            switch self {
-            case .archiveFailed: "备份创建失败"
-            }
-        }
-    }
-
-    static func backupDirectory() -> URL {
-        RuntimeConfigBuilder.appSupportDirectory().appendingPathComponent("backups", isDirectory: true)
-    }
-
-    static func createBackup() throws -> URL {
-        let source = RuntimeConfigBuilder.appSupportDirectory()
-        let destDir = backupDirectory()
-        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
-        let stamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
-        let dest = destDir.appendingPathComponent("clashmac-backup-\(stamp).zip")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        process.arguments = ["-r", dest.path, "."]
-        process.currentDirectoryURL = source
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw BackupError.archiveFailed }
-        return dest
-    }
-
-    static func listBackups() -> [URL] {
-        (try? FileManager.default.contentsOfDirectory(at: backupDirectory(), includingPropertiesForKeys: [.creationDateKey]))?
-            .filter { $0.pathExtension == "zip" }
-            .sorted { ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast) } ?? []
-    }
-}
-
-private extension URL {
-    var creationDate: Date? {
-        try? resourceValues(forKeys: [.creationDateKey]).creationDate
-    }
-}
-
 enum DiagnosticExporter {
     @MainActor
     static func export(store: AppStore) -> URL {

@@ -9,7 +9,7 @@ enum MihomoAPIError: LocalizedError {
         switch self {
         case .invalidResponse: "Mihomo 返回无效数据"
         case .httpStatus(let code): "Mihomo HTTP \(code)"
-        case .notRunning: "Mihomo 未运行"
+        case .notRunning: "Mihomo 启动超时，请重试或查看日志"
         }
     }
 }

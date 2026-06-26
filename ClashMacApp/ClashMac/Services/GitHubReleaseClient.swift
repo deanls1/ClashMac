@@ -31,10 +31,18 @@ enum GitHubReleaseClient {
     }
 
     private static let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 600
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 900
         config.waitsForConnectivity = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        // 下载内核/GeoData 必须直连 GitHub，避免被本机系统代理劫持导致 SSL bad MAC
+        config.connectionProxyDictionary = [
+            kCFNetworkProxiesHTTPEnable as String: 0,
+            kCFNetworkProxiesHTTPSEnable as String: 0,
+            kCFNetworkProxiesProxyAutoConfigEnable as String: 0,
+            kCFNetworkProxiesSOCKSEnable as String: 0,
+        ]
         return URLSession(configuration: config)
     }()
 
@@ -47,6 +55,8 @@ enum GitHubReleaseClient {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .timedOut {
             throw ClientError.timedOut
+        } catch let error as URLError where isTLSError(error) {
+            throw ClientError.network("TLS 握手失败（若已开系统代理，请先停止代理或关闭系统代理后再下载）")
         } catch {
             throw ClientError.network(error.localizedDescription)
         }
@@ -82,6 +92,8 @@ enum GitHubReleaseClient {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .timedOut {
             throw ClientError.timedOut
+        } catch let error as URLError where isTLSError(error) {
+            throw ClientError.network("TLS 握手失败（若已开系统代理，请先停止代理或关闭系统代理后再下载）")
         } catch {
             throw ClientError.network(error.localizedDescription)
         }
@@ -99,5 +111,20 @@ enum GitHubReleaseClient {
         }
         onProgress?(1)
         return data
+    }
+
+    private static func isTLSError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .secureConnectionFailed,
+             .serverCertificateUntrusted,
+             .clientCertificateRejected,
+             .clientCertificateRequired,
+             .cannotLoadFromNetwork,
+             .networkConnectionLost,
+             .cannotConnectToHost:
+            return true
+        default:
+            return false
+        }
     }
 }

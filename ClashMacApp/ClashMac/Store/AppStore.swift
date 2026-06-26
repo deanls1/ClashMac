@@ -373,6 +373,34 @@ final class AppStore {
         AppPreferences.persist(from: self)
     }
 
+    func setHotkeysEnabled(_ enabled: Bool) {
+        hotkeysEnabled = enabled
+        AppPreferences.hotkeysEnabled = enabled
+        registerHotkeys()
+    }
+
+    func setGlobalHotkey(_ enabled: Bool) {
+        globalHotkey = enabled
+        AppPreferences.globalHotkey = enabled
+        registerHotkeys()
+    }
+
+    func setMenuBarIconStyle(_ style: MenuBarIconStyle) {
+        menuBarIconStyle = style
+        AppPreferences.menuBarIconStyle = style
+    }
+
+    func removeUnlockTarget(_ target: UnlockTarget) {
+        let builtIn = Set(UnlockService.defaultTargets.map(\.id))
+        guard !builtIn.contains(target.id) else { return }
+        unlockTargets.removeAll { $0.id == target.id }
+        try? UnlockTargetStore.save(unlockTargets)
+    }
+
+    func isCustomUnlockTarget(_ target: UnlockTarget) -> Bool {
+        !UnlockService.defaultTargets.contains { $0.id == target.id }
+    }
+
     func saveDNSConfig(_ config: DNSConfig) {
         dnsConfig = config
         try? DNSConfigStore.save(config)
@@ -397,14 +425,6 @@ final class AppStore {
         runtime = AppPreferences.makeRuntimeConfig(mode: mode)
         if coreState.isRunning {
             Task { await applyRuntimeSettings() }
-        }
-    }
-
-    func createBackup() {
-        do {
-            _ = try ConfigBackupService.createBackup()
-        } catch {
-            coreState = .error(error.localizedDescription)
         }
     }
 
@@ -639,6 +659,11 @@ final class AppStore {
 
             AppPreferences.persist(from: self)
             runtime = AppPreferences.makeRuntimeConfig(mode: mode)
+
+            if let conflict = PortAvailabilityChecker.conflictMessage(for: runtime.mixedPort) {
+                throw CoreProcessError.launchFailed(conflict)
+            }
+
             MihomoIPCPath.removeStaleSocketIfNeeded()
             let configURL = try RuntimeConfigBuilder.writeRuntimeConfig(profileYAML: profileYAML, runtime: runtime)
             try CoreConfigValidator.validate(
@@ -660,10 +685,12 @@ final class AppStore {
                 )
                 usingHelper = true
             } else {
+                WorkDirectorySanitizer.prepareForUserCore(in: RuntimeConfigBuilder.workDirectory())
                 try CoreProcessController.shared.start(
                     coreURL: coreURL,
                     configURL: configURL,
-                    workDirectory: RuntimeConfigBuilder.workDirectory()
+                    workDirectory: RuntimeConfigBuilder.workDirectory(),
+                    runtime: runtime
                 )
                 usingHelper = false
             }
@@ -692,9 +719,14 @@ final class AppStore {
             startTrafficStreamIfNeeded()
         } catch {
             usingHelper = false
+            let stillRunning = CoreProcessController.shared.isRunning
             CoreProcessController.shared.stop()
             try? await helper.stopTunnel()
-            coreState = .error(error.localizedDescription)
+            coreState = .error(StartupErrorFormatter.message(
+                for: error,
+                mixedPort: mixedPortInput,
+                coreStillRunning: stillRunning
+            ))
         }
     }
 

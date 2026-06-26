@@ -38,8 +38,11 @@ struct DNSConfig: Codable, Equatable, Sendable {
 
     static let vergeDefault = DNSConfig()
 
-    func yamlBlock() -> String {
-        var lines: [String] = ["dns:", "  enable: \(enable)", "  listen: '\(listen)'"]
+    func yamlBlock(includePrivilegedListen: Bool = true) -> String {
+        var lines: [String] = ["dns:", "  enable: \(enable)"]
+        if includePrivilegedListen, !listen.isEmpty {
+            lines.append("  listen: '\(listen)'")
+        }
         lines.append("  enhanced-mode: \(enhancedMode)")
         lines.append("  fake-ip-range: '\(fakeIPRange)'")
         lines.append("  fake-ip-filter-mode: \(fakeIPFilterMode)")

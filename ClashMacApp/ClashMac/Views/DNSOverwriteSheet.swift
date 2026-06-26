@@ -16,7 +16,7 @@ struct DNSOverwriteSheet: View {
                     config = .vergeDefault
                 }
                 .foregroundStyle(VergeColor.upload)
-                Button(showAdvanced ? "可视化" : "高级") {
+                Button(showAdvanced ? "可视化" : "YAML 预览") {
                     showAdvanced.toggle()
                 }
                 .buttonStyle(.borderedProminent)
@@ -33,11 +33,15 @@ struct DNSOverwriteSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if showAdvanced {
-                        TextEditor(text: .constant(config.yamlBlock()))
+                        Text("以下为当前 DNS 配置的 YAML 预览（只读）。修改请使用可视化表单。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: .constant(config.yamlBlock(includePrivilegedListen: store.tunEnabled)))
                             .font(.caption.monospaced())
                             .frame(minHeight: 360)
                             .padding(8)
                             .background(RoundedRectangle(cornerRadius: 8).fill(VergeColor.surface))
+                            .disabled(true)
                     } else {
                         dnsToggle("启用 DNS", $config.enable)
                         dnsField("DNS 监听地址", $config.listen)
