@@ -6,6 +6,7 @@ struct ProxyGridView: View {
     @State private var expandAll = true
     @State private var hideOffline = false
     @State private var groupSortKey: ProxyGroupSortKey = .defaultOrder
+    @State private var nodeSortKey: ProxyNodeSortKey = .defaultOrder
 
     private var filteredGroups: [ProxyGroup] {
         let base: [ProxyGroup]
@@ -57,7 +58,8 @@ struct ProxyGridView: View {
                                 store: store,
                                 group: group,
                                 expandAll: expandAll,
-                                hideOffline: hideOffline
+                                hideOffline: hideOffline,
+                                nodeSortKey: nodeSortKey
                             )
                         }
                     }
@@ -87,8 +89,14 @@ struct ProxyGridView: View {
             .controlSize(.small)
 
             Menu {
-                Picker("排序", selection: $groupSortKey) {
+                Picker("分组", selection: $groupSortKey) {
                     ForEach(ProxyGroupSortKey.allCases) { key in
+                        Text(key.label).tag(key)
+                    }
+                }
+                Divider()
+                Picker("节点", selection: $nodeSortKey) {
+                    ForEach(ProxyNodeSortKey.allCases) { key in
                         Text(key.label).tag(key)
                     }
                 }
@@ -150,10 +158,29 @@ private struct VergeProxyGroupBlock: View {
     let group: ProxyGroup
     let expandAll: Bool
     let hideOffline: Bool
+    let nodeSortKey: ProxyNodeSortKey
     @State private var isExpanded = true
 
     private var visibleNodes: [ProxyNode] {
-        hideOffline ? group.nodes.filter(\.isAlive) : group.nodes
+        let nodes = hideOffline ? group.nodes.filter(\.isAlive) : group.nodes
+        return sortedNodes(nodes)
+    }
+
+    private func sortedNodes(_ nodes: [ProxyNode]) -> [ProxyNode] {
+        switch nodeSortKey {
+        case .defaultOrder:
+            return nodes
+        case .name:
+            return nodes.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .latency:
+            return nodes.sorted { nodeLatencyRank($0) < nodeLatencyRank($1) }
+        }
+    }
+
+    private func nodeLatencyRank(_ node: ProxyNode) -> Int {
+        node.delay ?? Int.max
     }
 
     private var selectedNode: ProxyNode? {

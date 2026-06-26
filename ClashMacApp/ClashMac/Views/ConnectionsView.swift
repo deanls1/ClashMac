@@ -1,20 +1,17 @@
 import SwiftUI
 
-private enum ConnectionColumn {
-    static let host: CGFloat = 220
-    static let traffic: CGFloat = 100
-    static let speed: CGFloat = 110
-    static let rule: CGFloat = 108
-    static let close: CGFloat = 28
-}
-
 struct ConnectionsView: View {
     @Bindable var store: AppStore
-    @State private var selectedID: String?
+    @State private var tableSelection = Set<ConnectionItem.ID>()
     @State private var detailItem: ConnectionItem?
 
     private var displayList: [ConnectionItem] {
         store.connectionTab == .active ? store.filteredConnections : store.filteredClosedConnections
+    }
+
+    private var selectedItem: ConnectionItem? {
+        guard let id = tableSelection.first else { return nil }
+        return displayList.first { $0.id == id }
     }
 
     var body: some View {
@@ -22,6 +19,10 @@ struct ConnectionsView: View {
             VergePageHeader(DashboardSection.connections.pageTitle) {
                 trafficStat("下载量", store.trafficTotals.downloadFormatted, VergeColor.download)
                 trafficStat("上传量", store.trafficTotals.uploadFormatted, VergeColor.upload)
+                if let selectedItem {
+                    Button("详情") { detailItem = selectedItem }
+                        .controlSize(.small)
+                }
                 Button("关闭全部") { Task { await store.closeAllConnections() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
@@ -66,29 +67,7 @@ struct ConnectionsView: View {
             if displayList.isEmpty {
                 connectionsEmptyState
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        connectionTableHeader
-                        ForEach(displayList) { item in
-                            VergeConnectionRow(
-                                item: item,
-                                isSelected: selectedID == item.id,
-                                showClose: store.connectionTab == .active,
-                                onSelect: { selectedID = item.id },
-                                onOpen: {
-                                    selectedID = item.id
-                                    detailItem = item
-                                },
-                                onClose: { Task { await store.closeConnection(item) } }
-                            )
-                            if item.id != displayList.last?.id {
-                                Divider().opacity(0.3).padding(.leading, 14)
-                            }
-                        }
-                    }
-                    .background(vergeCardBackground)
-                    .padding(VergeLayout.contentPadding)
-                }
+                connectionsTable
             }
         }
         .background(VergeColor.canvas)
@@ -98,10 +77,104 @@ struct ConnectionsView: View {
             }
         }
         .onChange(of: store.connectionTab) { _, _ in
-            selectedID = nil
+            tableSelection = []
             detailItem = nil
         }
         .onAppear { Task { await store.refreshConnections() } }
+    }
+
+    private var connectionsTable: some View {
+        Table(displayList, selection: $tableSelection) {
+            TableColumn("主机") { item in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.host)
+                        .font(VergeTypography.bodyMedium)
+                        .lineLimit(1)
+                    if !item.process.isEmpty && item.process != "—" {
+                        Text(item.process)
+                            .font(VergeTypography.small)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .width(min: 140, ideal: 220)
+
+            TableColumn("下载量") { item in
+                Text(item.downloadFormatted)
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(VergeColor.download)
+            }
+            .width(min: 72, ideal: 100)
+
+            TableColumn("上传量") { item in
+                Text(item.uploadFormatted)
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(VergeColor.upload)
+            }
+            .width(min: 72, ideal: 100)
+
+            TableColumn("下载速度") { item in
+                Text(item.downloadSpeedFormatted)
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(VergeColor.download)
+            }
+            .width(min: 80, ideal: 110)
+
+            TableColumn("上传速度") { item in
+                Text(item.uploadSpeedFormatted)
+                    .font(VergeTypography.mono)
+                    .foregroundStyle(VergeColor.upload)
+            }
+            .width(min: 80, ideal: 110)
+
+            TableColumn("链路") { item in
+                VergeChainLabel(chain: item.chain)
+            }
+            .width(min: 120)
+
+            TableColumn("规则") { item in
+                Text(item.rule)
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 88, ideal: 108)
+
+            if store.connectionTab == .active {
+                TableColumn("") { item in
+                    Button {
+                        Task { await store.closeConnection(item) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("断开连接")
+                }
+                .width(28)
+            }
+        }
+        .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .padding(VergeLayout.contentPadding)
+        .onKeyPress(.return) {
+            if let selectedItem {
+                detailItem = selectedItem
+                return .handled
+            }
+            return .ignored
+        }
+        .contextMenu(forSelectionType: ConnectionItem.ID.self) { selection in
+            if let id = selection.first, let item = displayList.first(where: { $0.id == id }) {
+                Button("查看详情") { detailItem = item }
+                if store.connectionTab == .active {
+                    Button("断开连接", role: .destructive) {
+                        Task { await store.closeConnection(item) }
+                    }
+                }
+            }
+        }
     }
 
     private func trafficStat(_ title: String, _ value: String, _ color: Color) -> some View {
@@ -136,114 +209,6 @@ struct ConnectionsView: View {
             return "启动代理后将显示实时连接"
         }
         return store.connectionTab == .active ? "当前没有活动连接" : "暂无已关闭的连接记录"
-    }
-
-    private var connectionTableHeader: some View {
-        VergeTableHeader(columns: headerColumns)
-    }
-
-    private var headerColumns: [VergeTableColumn] {
-        var cols = [
-            VergeTableColumn(title: "主机", width: ConnectionColumn.host),
-            VergeTableColumn(title: "下载量", width: ConnectionColumn.traffic),
-            VergeTableColumn(title: "上传量", width: ConnectionColumn.traffic),
-            VergeTableColumn(title: "下载速度", width: ConnectionColumn.speed),
-            VergeTableColumn(title: "上传速度", width: ConnectionColumn.speed),
-            VergeTableColumn(title: "链路", flex: true),
-            VergeTableColumn(title: "规则", width: ConnectionColumn.rule),
-        ]
-        if store.connectionTab == .active {
-            cols.append(VergeTableColumn(title: "", width: ConnectionColumn.close))
-        }
-        return cols
-    }
-}
-
-private struct VergeConnectionRow: View {
-    let item: ConnectionItem
-    let isSelected: Bool
-    let showClose: Bool
-    let onSelect: () -> Void
-    let onOpen: () -> Void
-    let onClose: () -> Void
-    @State private var hovered = false
-
-    var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.host)
-                    .font(VergeTypography.bodyMedium)
-                    .lineLimit(1)
-                if !item.process.isEmpty && item.process != "—" {
-                    Text(item.process)
-                        .font(VergeTypography.small)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: ConnectionColumn.host, alignment: .leading)
-
-            Text(item.downloadFormatted)
-                .font(VergeTypography.mono)
-                .foregroundStyle(VergeColor.download)
-                .frame(width: ConnectionColumn.traffic, alignment: .leading)
-
-            Text(item.uploadFormatted)
-                .font(VergeTypography.mono)
-                .foregroundStyle(VergeColor.upload)
-                .frame(width: ConnectionColumn.traffic, alignment: .leading)
-
-            Text(item.downloadSpeedFormatted)
-                .font(VergeTypography.mono)
-                .foregroundStyle(VergeColor.download)
-                .frame(width: ConnectionColumn.speed, alignment: .leading)
-
-            Text(item.uploadSpeedFormatted)
-                .font(VergeTypography.mono)
-                .foregroundStyle(VergeColor.upload)
-                .frame(width: ConnectionColumn.speed, alignment: .leading)
-
-            VergeChainLabel(chain: item.chain)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(item.rule)
-                .font(VergeTypography.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .frame(width: ConnectionColumn.rule, alignment: .leading)
-
-            if showClose {
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .frame(width: ConnectionColumn.close)
-                .opacity(hovered || isSelected ? 1 : 0.35)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(rowBackground)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 1) { onSelect() }
-        .onTapGesture(count: 2) { onOpen() }
-        .onHover { hovered = $0 }
-        .help("双击查看详情")
-    }
-
-    private var rowBackground: some View {
-        Group {
-            if isSelected {
-                VergeColor.accentSoft.opacity(0.55)
-            } else if hovered {
-                VergeColor.surface.opacity(0.45)
-            } else {
-                Color.clear
-            }
-        }
     }
 }
 
