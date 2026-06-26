@@ -73,6 +73,8 @@ struct VergeHomeView: View {
                     currentNodeCard.frame(maxWidth: .infinity)
                 }
 
+                websiteTestCard
+
                 HStack(alignment: .top, spacing: 14) {
                     networkCard.frame(maxWidth: .infinity)
                     VergeIPDualCard(
@@ -295,6 +297,58 @@ struct VergeHomeView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(active ? Color.white : Color.secondary)
+    }
+
+    private var websiteTestCard: some View {
+        VergeHomeCard(icon: "network", iconColor: VergeColor.download, title: "网站测速") {
+            HStack(spacing: 12) {
+                ForEach(store.websiteTests) { item in
+                    websiteTestTile(item)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    Task { await store.testAllWebsites() }
+                } label: {
+                    if store.isTestingWebsites {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("全部")
+                            .font(VergeTypography.captionMedium)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(store.isTestingWebsites)
+            }
+        }
+    }
+
+    private func websiteTestTile(_ item: WebsiteTestItem) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: item.symbol)
+                .font(.title3)
+                .foregroundStyle(VergeColor.accent)
+            Text(item.name)
+                .font(VergeTypography.captionMedium)
+            if item.isTesting {
+                ProgressView().controlSize(.mini)
+            } else if let delay = item.delayMs {
+                Button("\(delay) ms") {
+                    Task { await store.testWebsiteLatency(id: item.id) }
+                }
+                .font(VergeTypography.small.monospacedDigit())
+                .buttonStyle(.plain)
+                .foregroundStyle(VergeColor.latency(delay))
+            } else {
+                Button("测试") {
+                    Task { await store.testWebsiteLatency(id: item.id) }
+                }
+                .font(VergeTypography.smallMedium)
+                .buttonStyle(.plain)
+                .foregroundStyle(VergeColor.accent)
+            }
+        }
+        .frame(minWidth: 72)
     }
 
     private var clashInfoCard: some View {

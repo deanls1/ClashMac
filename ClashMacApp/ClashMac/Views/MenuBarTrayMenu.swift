@@ -60,6 +60,11 @@ struct MenuBarTrayMenu: View {
 
         Divider()
 
+        Button("复制代理环境变量") {
+            store.copyProxyEnvironment()
+        }
+        .disabled(!store.coreState.isRunning)
+
         Button("关闭全部连接") {
             Task { await store.closeAllConnections() }
         }

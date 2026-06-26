@@ -97,6 +97,8 @@ final class AppStore {
     var startupBanners: [StartupBanner] = []
     var dismissedBannerKinds: Set<StartupBanner.Kind> = []
     var isProfileReorderMode = false
+    var websiteTests: [WebsiteTestItem] = WebsiteTestItem.defaults
+    var isTestingWebsites = false
     var isDNSOverwritePresented = false
     var isTUNConfigPresented = false
 
@@ -525,6 +527,32 @@ final class AppStore {
         list.move(fromOffsets: source, toOffset: destination)
         profiles = list
         try? ProfileStore.reorderProfiles(list)
+    }
+
+    func copyProxyEnvironment() {
+        guard coreState.isRunning else { return }
+        ProxyEnvironmentClipboard.copyMixedPort(mixedPort)
+    }
+
+    func testWebsiteLatency(id: String) async {
+        guard let index = websiteTests.firstIndex(where: { $0.id == id }) else { return }
+        websiteTests[index].isTesting = true
+        let url = websiteTests[index].url
+        let port = coreState.isRunning ? mixedPort : nil
+        let delay = await WebsiteLatencyService.measure(url: url, proxyPort: port)
+        if let index = websiteTests.firstIndex(where: { $0.id == id }) {
+            websiteTests[index].delayMs = delay
+            websiteTests[index].isTesting = false
+        }
+    }
+
+    func testAllWebsites() async {
+        guard !isTestingWebsites else { return }
+        isTestingWebsites = true
+        defer { isTestingWebsites = false }
+        for item in websiteTests {
+            await testWebsiteLatency(id: item.id)
+        }
     }
 
     func activateProfile(_ profile: Profile) async {

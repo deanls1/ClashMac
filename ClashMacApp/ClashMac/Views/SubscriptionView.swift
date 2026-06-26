@@ -10,6 +10,12 @@ struct SubscriptionView: View {
     var body: some View {
         VStack(spacing: 0) {
             VergePageHeader(DashboardSection.subscription.pageTitle) {
+                Button {
+                    store.isProfileReorderMode.toggle()
+                } label: {
+                    Image(systemName: store.isProfileReorderMode ? "checkmark.circle" : "arrow.up.arrow.down")
+                }
+                .help(store.isProfileReorderMode ? "完成排序" : "调整顺序")
                 Button { importLocalYAML() } label: {
                     Image(systemName: "square.and.arrow.down")
                 }
@@ -53,11 +59,12 @@ struct SubscriptionView: View {
             }
             .padding(.top, 40)
         } else {
-            VStack(spacing: 10) {
+            List {
                 ForEach(store.profiles) { profile in
                     VergeProfileCard(
                         profile: profile,
                         isActive: profile.id == store.activeProfile?.id,
+                        showDragHandle: store.isProfileReorderMode,
                         activate: { Task { await store.activateProfile(profile) } },
                         refresh: { Task { await store.refreshSubscription(profile) } },
                         rename: {
@@ -66,8 +73,17 @@ struct SubscriptionView: View {
                         },
                         delete: { Task { await store.deleteProfile(profile) } }
                     )
+                    .listRowInsets(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+                .onMove { source, destination in
+                    guard store.isProfileReorderMode else { return }
+                    store.moveProfile(from: source, to: destination)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 
@@ -128,6 +144,7 @@ struct SubscriptionView: View {
 private struct VergeProfileCard: View {
     let profile: Profile
     let isActive: Bool
+    var showDragHandle = false
     let activate: () -> Void
     let refresh: () -> Void
     let rename: () -> Void
@@ -145,10 +162,12 @@ private struct VergeProfileCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 3)
+                    if showDragHandle {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 3)
+                    }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.name)
