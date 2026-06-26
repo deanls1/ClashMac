@@ -1,118 +1,26 @@
-<p align="center">
-  <img src="assets/cat.svg" alt="ClashMac Logo" width="300">
-</p>
-<h1 align="center">ClashMac 27</h1>
-<h3 align="center" style="margin-top: 0; margin-bottom: 10px;">Native Proxy Experience Built for macOS</h3>
-<p align="center">
-  🌐 <a href="https://clashmac.app"><strong>Official Website</strong></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  📖 <a href="https://clashmac.app/guide/"><strong>User Manual</strong></a>
-</p>
+# ClashMac
 
-<p align="center" style="margin-top: 0; margin-bottom: 20px;">
-  <a href="https://github.com/666OS/ClashMac/releases/latest">
-    <img src="https://img.shields.io/github/v/release/666OS/ClashMac?style=flat-square&logo=github&color=green" alt="Latest Release">
-  </a>
-  <a href="https://github.com/666OS/ClashMac/releases">
-    <img src="https://img.shields.io/github/downloads/666OS/ClashMac/total?style=flat-square&logo=dropbox&logoColor=white&color=gold" alt="Downloads">
-  </a>
-  <a href="https://clashmac.app">
-    <img src="https://img.shields.io/badge/Official-Website-orange?style=flat-square&logo=safari" alt="Official Website">
-  </a>
-  <a href="https://t.me/Pinched666">
-    <img src="https://img.shields.io/badge/Telegram-Channel-blue?style=flat-square&logo=telegram">
-  </a>
-</p>
+原生 SwiftUI macOS Mihomo 客户端，UI 与使用体验参考 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)。
 
-<table>
-  <tr>
-    <td colspan="2" align="center"><img src="./assets/dashboard_b.jpg" alt="Dashboard"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="./assets/Route_b.jpg" alt="Route"></td>
-  </tr> 
-  <tr>
-    <td colspan="2" align="center"><img src="./assets/Topology_b.jpg" alt="Topology"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="./assets/menu_b.jpg" alt="Menu"></td>
-  </tr>
-</table>
+## 快速开始
 
-## ✨ Features
+```bash
+cd ClashMacApp
+./Scripts/download-mihomo.sh   # 可选：下载内嵌内核
+xcodegen generate
+open ClashMac.xcodeproj
+```
 
-### 🗺️ Visual Route Map
-- **Live Flight Routes**: Watch your active proxy traffic fly across the globe in real-time, updating every 10 seconds.
-- **Interactive Control**: Zoom, pan, and hover over paths for instant telemetry. Supports historical audit logs.
-- **Smart Obfuscation**: Mask your precise location by randomizing your departure point across 190+ global cities.
+详细说明见 [ClashMacApp/README.md](ClashMacApp/README.md)。
 
-### 🔍 Active Connections & Rules
-- **Live Traffic Grid**: Check which apps are consuming bandwidth, their speeds, protocols, and routing rules.
-- **One-Click Rule Maker**: Instantly add custom proxy or blocking rules for the active browser tab or process.
-- **Instant Cut-off**: Disconnect any hogging connection with a simple right-click.
+## 安全特性
 
-### 📊 Real-time Dashboard
-- **Speed Curves**: High-definition, smooth graph tracking upload and download bandwidth over a 60-second window.
-- **Leaderboards**: Automatically lists your most active target domains, matched rules, and destinations.
-- **Resource Monitoring**: Track system memory footprint of both the UI and the underlying network engine.
+- Helper XPC 签名校验 + 安装用户 GID 绑定
+- 默认 Unix Socket API（HTTP 外部控制默认关闭）
+- Keychain 存储控制 API 密钥
+- 订阅 HTTPS 强制、Geo/内核下载 SHA256 清单校验
+- 诊断导出自动脱敏
 
----
+## License
 
-## 🛠️ Built for macOS
-
-- **100% Native**: Built exclusively in SwiftUI for native performance. Resides quietly in the menu bar with minimal CPU and memory footprints.
-- **TUN Enhanced**: System-wide proxy integration with complete UDP/TCP capture.
-- **No Setup Needed**: Ready out of the box with automated DNS, TUN, and routing database parameters.
-- **Video Boost**: Disable QUIC protocols to prevent ISP throttling and eliminate buffering on YouTube and Netflix.
-- **No Repeated Passwords**: Authorize network helper tool installation once—never get prompted for admin passwords again.
-
----
-
-## 💻 Get Started
-
-- **System Requirement**: macOS 15.0+ (Sequoia or later)
-
-### Installation
-1. Download the latest `ClashMac.dmg` disk image from the [Releases page](https://github.com/666OS/ClashMac/releases/latest).
-2. Double-click the `.dmg` and **drag** `ClashMac.app` into your **Applications** folder.
-   > [!CAUTION]
-   > Do not run ClashMac directly from the `.dmg` installer window, as macOS security sandbox will prevent the application from saving settings and installing system network services.
-3. On first launch, right-click `ClashMac.app` and select **Open**. ClashMac will register its system helper tool and automatically download the correct kernel engine matching your Mac's CPU architecture (Apple Silicon or Intel).
-
----
-
-## 🛡️ Bypassing Gatekeeper
-
-If macOS blocks launching with a warning (e.g., "developer cannot be verified"), use one of these solutions:
-
-- **System Settings**: Go to **System Settings** $\rightarrow$ **Privacy & Security**, scroll down to find the block notice, and click **Open Anyway**.
-- **Terminal Command**: Run the following command in Terminal to clear the quarantine flag:
-  ```bash
-  sudo xattr -rd com.apple.quarantine /Applications/ClashMac.app
-  ```
-
----
-
-## 🔒 Security & Privacy
-
-- **100% Local**: All settings, traffic details, and history stay locally on your Mac. No data collection, tracking, or logs.
-- **Secure Helper**: The background system helper is hardened and restricted to run core files solely from `/Applications/ClashMac.app/`.
-
----
-
-## 📄 License & Credits
-
-ClashMac is proprietary, closed-source software. Binary releases are provided in this repository.
-
-View third-party credits and licenses here:  
-👉 [THIRD_PARTY_LICENSES](https://github.com/666OS/ClashMac/blob/main/THIRD_PARTY_LICENSES.txt)
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=666OS/ClashMac&type=Date)](https://star-history.com/#666OS/ClashMac&Date)
-
-<p align="center">
-  Crafted with ❤️ for macOS
-</p>
+MIT

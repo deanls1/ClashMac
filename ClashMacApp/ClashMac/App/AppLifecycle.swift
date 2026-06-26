@@ -1,0 +1,64 @@
+import AppKit
+
+@MainActor
+final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    static weak var store: AppStore?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        configureMainMenu()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        HotkeyService.shared.removeMonitor()
+        guard let store = Self.store else { return .terminateNow }
+
+        Task { @MainActor in
+            await store.prepareForQuit()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        HotkeyService.shared.removeMonitor()
+        SystemProxyController.disableActiveServiceProxy()
+        CoreProcessController.shared.stop(waitForExit: false)
+    }
+
+    private func configureMainMenu() {
+        let appMenu = NSMenu()
+        appMenu.addItem(
+            withTitle: "打开主窗口",
+            action: #selector(openMainWindow(_:)),
+            keyEquivalent: "o"
+        )
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            withTitle: "退出 Clash Mac",
+            action: #selector(quitApp(_:)),
+            keyEquivalent: "q"
+        )
+
+        let appMenuItem = NSMenuItem()
+        appMenuItem.submenu = appMenu
+
+        let mainMenu = NSMenu()
+        mainMenu.addItem(appMenuItem)
+        NSApp.mainMenu = mainMenu
+    }
+
+    @objc private func openMainWindow(_ sender: Any?) {
+        MainWindowController.open()
+    }
+
+    @objc private func quitApp(_ sender: Any?) {
+        AppQuit.request()
+    }
+}
+
+enum AppQuit {
+    static func request() {
+        NSApp.terminate(nil)
+    }
+}

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clash Mac — UI Preview</title>
+  <style>
+    :root {
+      --bg: #ececec;
+      --panel: #f5f5f7;
+      --card: rgba(0, 0, 0, 0.04);
+      --text: #1d1d1f;
+      --secondary: #6e6e73;
+      --tertiary: #aeaeb2;
+      --accent: #007aff;
+      --green: #34c759;
+      --orange: #ff9500;
+      --red: #ff3b30;
+      --radius: 12px;
+      --card-radius: 10px;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
+      --mono: "SF Mono", ui-monospace, Menlo, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1e;
+        --panel: #2c2c2e;
+        --card: rgba(255, 255, 255, 0.06);
+        --text: #f5f5f7;
+        --secondary: #98989d;
+        --tertiary: #636366;
+        --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 40px 20px;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--secondary);
+      text-align: center;
+      max-width: 420px;
+      line-height: 1.5;
+    }
+
+    .menubar-mock {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .menubar-mock .icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.9;
+    }
+
+    .panel {
+      width: 320px;
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 0.5px solid rgba(128,128,128,0.25);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .accent-bar {
+      height: 3px;
+      background: linear-gradient(to bottom, rgba(0,122,255,0.35), rgba(0,122,255,0.05));
+    }
+
+    .panel-inner { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    .header { display: flex; align-items: center; gap: 12px; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 0 2px rgba(52,199,89,0.3);
+      animation: pulse 1.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(52,199,89,0.5); }
+      70% { box-shadow: 0 0 0 6px rgba(52,199,89,0); }
+      100% { box-shadow: 0 0 0 0 rgba(52,199,89,0); }
+    }
+    .title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .subtitle { font-size: 11px; color: var(--secondary); margin-top: 2px; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 7px 0;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--card-radius);
+      padding: 10px;
+    }
+    .card-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .segmented {
+      display: flex;
+      background: rgba(128,128,128,0.15);
+      border-radius: 7px;
+      padding: 2px;
+    }
+    .segmented button {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 5px 0;
+      font-size: 12px;
+      color: var(--secondary);
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+    .segmented button.active {
+      background: var(--panel);
+      color: var(--text);
+      font-weight: 500;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+
+    .divider { height: 0.5px; background: rgba(128,128,128,0.25); margin: 10px 0; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .toggle-text .main { font-size: 14px; }
+    .toggle-text .sub { font-size: 11px; color: var(--secondary); margin-top: 1px; }
+    .switch {
+      width: 40px; height: 24px; border-radius: 12px;
+      background: var(--green); position: relative; flex-shrink: 0;
+    }
+    .switch::after {
+      content: ""; position: absolute; width: 20px; height: 20px;
+      background: #fff; border-radius: 50%; top: 2px; right: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .node-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 8px; height: 36px; border-radius: 8px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .node-row:hover { background: rgba(128,128,128,0.1); }
+    .node-row .check { color: var(--accent); font-size: 14px; width: 16px; }
+    .node-row .check.off { color: var(--tertiary); }
+    .node-row .name { flex: 1; font-size: 14px; }
+    .latency { font-family: var(--mono); font-size: 11px; font-weight: 500; min-width: 44px; text-align: right; }
+    .latency.good { color: var(--green); }
+    .latency.mid { color: var(--orange); }
+    .latency.bad { color: var(--red); }
+    .latency.na { color: var(--tertiary); }
+
+    .link-btn {
+      display: block; width: 100%; margin-top: 6px; padding: 4px;
+      border: none; background: none; color: var(--secondary);
+      font-size: 11px; font-weight: 500; cursor: pointer; font-family: var(--font);
+    }
+
+    .traffic {
+      display: flex; gap: 20px; padding: 6px 10px;
+      background: var(--card); border-radius: 8px;
+    }
+    .traffic-item { display: flex; gap: 6px; align-items: flex-start; }
+    .traffic-item .arrow { font-size: 10px; font-weight: 700; margin-top: 2px; }
+    .traffic-item .arrow.up { color: #007aff; }
+    .traffic-item .arrow.down { color: var(--green); }
+    .traffic-item .lbl { font-size: 10px; color: var(--secondary); }
+    .traffic-item .val { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+
+    .footer {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--secondary);
+    }
+    .footer button {
+      border: none; background: none; color: var(--secondary);
+      font-size: 11px; cursor: pointer; font-family: var(--font);
+    }
+
+    .theme-toggle {
+      position: fixed; top: 16px; right: 16px;
+      padding: 6px 12px; border-radius: 8px;
+      border: 0.5px solid rgba(128,128,128,0.3);
+      background: var(--panel); color: var(--text);
+      font-size: 12px; cursor: pointer; font-family: var(--font);
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="toggleTheme()">切换深/浅色</button>
+
+  <div class="menubar-mock">
+    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+    <span>Clash Mac 菜单栏图标（运行中）</span>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="accent-bar"></div>
+    <div class="panel-inner">
+      <div class="header">
+        <div class="status-dot"></div>
+        <div>
+          <div class="title">Clash Mac</div>
+          <div class="subtitle">运行中</div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="toggleRun(this)">停止代理</button>
+
+      <div class="card">
+        <div class="card-label">⎇ 出站</div>
+        <div class="segmented">
+          <button class="active" onclick="pickMode(this)">规则</button>
+          <button onclick="pickMode(this)">全局</button>
+          <button onclick="pickMode(this)">直连</button>
+        </div>
+        <div class="divider"></div>
+        <div class="toggle-row">
+          <div class="toggle-text">
+            <div class="main">增强模式 (TUN)</div>
+            <div class="sub">全局接管 TCP/UDP 流量</div>
+          </div>
+          <div class="switch"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">🖥 节点</div>
+        <div class="node-row" onclick="pickNode(this)">
+          <span class="check">✓</span>
+          <span class="name">HK · 01</span>
+          <span class="latency good">42 ms</span>
+        </div>
+        <div class="node-row" onclick="pickNode(this)">
+          <span class="check off">○</span>
+          <span class="name">SG · 02</span>
+          <span class="latency good">68 ms</span>
+        </div>
+        <div class="node-row" onclick="pickNode(this)">
+          <span class="check off">○</span>
+          <span class="name">US · 03</span>
+          <span class="latency mid">186 ms</span>
+        </div>
+        <div class="node-row" onclick="pickNode(this)">
+          <span class="check off">○</span>
+          <span class="name">JP · 04</span>
+          <span class="latency na">—</span>
+        </div>
+        <button class="link-btn">⏱ 测速全部</button>
+      </div>
+
+      <div class="traffic">
+        <div class="traffic-item">
+          <span class="arrow up">↑</span>
+          <div><div class="lbl">上传</div><div class="val">125 KB/s</div></div>
+        </div>
+        <div class="traffic-item">
+          <span class="arrow down">↓</span>
+          <div><div class="lbl">下载</div><div class="val">1.0 MB/s</div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <button>⚙ 设置</button>
+        <span>v1.19.0</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">
+    这是 Clash Mac 菜单栏面板的静态预览（HTML 近似 SwiftUI 布局）。<br />
+    真实 App 需在 Xcode 中打开 <code>MenuBarPanelView.swift</code> 的 Canvas Preview，或 ⌘R 运行。
+  </p>
+
+  <script>
+    function pickMode(btn) {
+      btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function pickNode(row) {
+      document.querySelectorAll('.node-row').forEach(r => {
+        r.querySelector('.check').textContent = '○';
+        r.querySelector('.check').classList.add('off');
+      });
+      row.querySelector('.check').textContent = '✓';
+      row.querySelector('.check').classList.remove('off');
+    }
+    function toggleRun(btn) {
+      const running = btn.textContent === '停止代理';
+      btn.textContent = running ? '启动代理' : '停止代理';
+      btn.style.background = running ? '#ff3b30' : '';
+      document.querySelector('.subtitle').textContent = running ? '已停止' : '运行中';
+      document.querySelector('.status-dot').style.background = running ? '#98989d' : '#34c759';
+      document.querySelector('.traffic').style.display = running ? 'none' : 'flex';
+    }
+    let forcedDark = null;
+    function toggleTheme() {
+      forcedDark = forcedDark === null ? document.documentElement.style.colorScheme !== 'dark' : !forcedDark;
+      document.documentElement.style.colorScheme = forcedDark ? 'dark' : 'light';
+    }
+  </script>
+</body>
+</html>

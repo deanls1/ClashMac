@@ -28,5 +28,14 @@ Desktop.ini
 __pycache__/
 node_modules/
 .cunzhi-memory
+# Xcode
+DerivedData/
+ClashMacApp/.derivedData/
+ClashMacApp/ClashMac/Resources/Core/mihomo*
+!ClashMacApp/ClashMac/Resources/Core/.gitkeep
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
 # Git
 .git/
