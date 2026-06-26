@@ -73,6 +73,9 @@ final class AppStore {
 
     // Update status
     var isUpdatingCore = false
+    var isCheckingCore = false
+    var latestCoreVersion: String?
+    var coreUpdateAvailable = false
     var isUpdatingGeoData = false
     var updateStatusMessage: String?
     var isRefreshingSubscriptions = false
@@ -222,20 +225,56 @@ final class AppStore {
         }
     }
 
-    func updateCore() async {
+    func checkCoreUpdate() async {
+        guard !isCheckingCore else { return }
+        isCheckingCore = true
+        updateStatusMessage = "正在检查内核版本…"
+        defer { isCheckingCore = false }
+        do {
+            let status = try await CoreUpdateService.checkForUpdate(localVersion: version)
+            latestCoreVersion = status.remoteVersion
+            coreUpdateAvailable = status.updateAvailable
+            if !status.isInstalled && CoreLocator.bundledCoreURL() == nil {
+                updateStatusMessage = "未安装内核，最新 v\(status.remoteVersion)"
+            } else if status.updateAvailable {
+                let local = status.localVersion ?? "未知"
+                updateStatusMessage = "发现新版本 v\(status.remoteVersion)（当前 \(local)）"
+            } else {
+                updateStatusMessage = "内核已是最新 v\(status.remoteVersion)"
+            }
+        } catch {
+            updateStatusMessage = error.localizedDescription
+        }
+    }
+
+    func updateCore(restartIfRunning: Bool = true) async {
         guard !isUpdatingCore else { return }
         isUpdatingCore = true
         updateStatusMessage = "正在下载内核…"
         defer { isUpdatingCore = false }
+        let wasRunning = coreState.isRunning
         do {
             let url = try await CoreUpdateService.downloadAndInstall()
             corePath = url.path
             version = CoreLocator.coreVersion(at: url) ?? "—"
-            updateStatusMessage = "内核已更新"
+            latestCoreVersion = try? await CoreUpdateService.latestVersion()
+            coreUpdateAvailable = false
+            updateStatusMessage = "内核已更新至 v\(version)"
+            if restartIfRunning && wasRunning {
+                await stop()
+                await start()
+            }
         } catch {
             updateStatusMessage = error.localizedDescription
             coreState = .error(error.localizedDescription)
         }
+    }
+
+    /// 首次启动时若本地没有可管理内核，自动从 GitHub 下载。
+    func ensureManagedCoreInstalled() async {
+        guard CoreUpdateService.installedCoreURL() == nil else { return }
+        guard CoreLocator.bundledCoreURL() == nil else { return }
+        await updateCore(restartIfRunning: false)
     }
 
     func updateGeoData() async {
@@ -314,6 +353,17 @@ final class AppStore {
         if HelperInstaller.isInstalled() {
             try? HelperTrustStore.recordCurrentUser()
         }
+        if let coreURL = CoreLocator.discoverCoreURL() {
+            corePath = coreURL.path
+            if let localVersion = CoreLocator.coreVersion(at: coreURL) {
+                version = localVersion
+            }
+        }
+        await ensureManagedCoreInstalled()
+        if let coreURL = CoreLocator.discoverCoreURL() {
+            corePath = coreURL.path
+            version = CoreLocator.coreVersion(at: coreURL) ?? version
+        }
         await runStartupChecks()
     }
 
@@ -325,12 +375,21 @@ final class AppStore {
             }
         }
         let result = await StartupCheckService.check(localCoreVersion: version)
+        latestCoreVersion = result.latestCoreVersion
+        coreUpdateAvailable = result.coreUpdateAvailable
         var banners: [StartupBanner] = []
         if !result.missingGeoData.isEmpty {
             banners.append(StartupBanner(
                 kind: .geoData,
                 title: "缺少 GeoData",
                 message: "缺失文件：\(result.missingGeoData.joined(separator: "、"))，可能影响规则分流"
+            ))
+        }
+        if result.coreMissing {
+            banners.append(StartupBanner(
+                kind: .coreMissing,
+                title: "未安装 Mihomo 内核",
+                message: "点击下载后可启动代理；也可在设置 → Clash 内核 中手动检查更新"
             ))
         }
         if result.coreUpdateAvailable, let latest = result.latestCoreVersion {
@@ -353,7 +412,7 @@ final class AppStore {
         case .geoData:
             await updateGeoData()
             await runStartupChecks()
-        case .coreUpdate:
+        case .coreUpdate, .coreMissing:
             await updateCore()
             await runStartupChecks()
         }

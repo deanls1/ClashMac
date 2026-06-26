@@ -79,6 +79,7 @@ enum IPInfoService {
 enum StartupCheckService {
     struct Result: Sendable {
         var missingGeoData: [String]
+        var coreMissing: Bool
         var coreUpdateAvailable: Bool
         var latestCoreVersion: String?
         var localCoreVersion: String?
@@ -86,31 +87,30 @@ enum StartupCheckService {
 
     static func check(localCoreVersion: String?) async -> Result {
         let missing = GeoDataUpdateService.fileStatus().filter { !$0.exists }.map(\.name)
+        let hasManagedCore = CoreUpdateService.installedCoreURL() != nil
+        let hasBundledCore = CoreLocator.bundledCoreURL().map {
+            FileManager.default.isExecutableFile(atPath: $0.path)
+        } ?? false
+        let coreMissing = !hasManagedCore && !hasBundledCore && CoreLocator.discoverCoreURL() == nil
+
         var latest: String?
         var updateAvailable = false
-        if let remote = try? await CoreUpdateService.latestVersion() {
-            latest = remote
-            if let local = normalizeVersion(localCoreVersion), normalizeVersion(remote) != local {
-                updateAvailable = true
-            }
+        if let status = try? await CoreUpdateService.checkForUpdate(localVersion: localCoreVersion) {
+            latest = status.remoteVersion
+            updateAvailable = status.updateAvailable && status.isInstalled
         }
         return Result(
             missingGeoData: missing,
+            coreMissing: coreMissing,
             coreUpdateAvailable: updateAvailable,
             latestCoreVersion: latest,
             localCoreVersion: localCoreVersion
         )
     }
-
-    private static func normalizeVersion(_ raw: String?) -> String? {
-        guard var text = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-        if text.hasPrefix("v") { text.removeFirst() }
-        return text
-    }
 }
 
 struct StartupBanner: Equatable, Sendable {
-    enum Kind: String, Hashable, Sendable { case geoData, coreUpdate }
+    enum Kind: String, Hashable, Sendable { case geoData, coreUpdate, coreMissing }
     let kind: Kind
     let title: String
     let message: String

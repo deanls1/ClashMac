@@ -759,7 +759,7 @@ struct VergeStartupBanner: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: banner.kind == .geoData ? "globe.americas" : "arrow.down.circle")
+            Image(systemName: bannerIcon)
                 .font(.title3)
                 .foregroundStyle(VergeColor.accent)
             VStack(alignment: .leading, spacing: 2) {
@@ -785,6 +785,14 @@ struct VergeStartupBanner: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(VergeColor.accent.opacity(0.35), lineWidth: 1)
                 }
+        }
+    }
+
+    private var bannerIcon: String {
+        switch banner.kind {
+        case .geoData: "globe.americas"
+        case .coreUpdate: "arrow.down.circle"
+        case .coreMissing: "cpu"
         }
     }
 }

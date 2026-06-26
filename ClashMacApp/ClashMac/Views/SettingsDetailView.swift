@@ -65,12 +65,9 @@ struct SettingsDetailView: View {
                 toggleRow("HTTP 外部控制", $store.enableExternalController) { _ in
                     store.persistPreferences()
                 }
+                coreKernelSection
                 VergeSettingsChevronRow(title: "更新 GeoData") {
                     Task { await store.updateGeoData() }
-                }
-                HStack {
-                    Text(store.version).font(.caption.monospaced()).foregroundStyle(.secondary)
-                    Spacer()
                 }
             }
 
@@ -98,9 +95,8 @@ struct SettingsDetailView: View {
                     NSWorkspace.shared.open(RuntimeConfigBuilder.appSupportDirectory())
                 }
                 VergeSettingsChevronRow(title: "内核目录") {
-                    NSWorkspace.shared.open(RuntimeConfigBuilder.workDirectory())
+                    NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
                 }
-                VergeSettingsChevronRow(title: "检查更新") { Task { await store.updateCore() } }
                 VergeSettingsChevronRow(title: "退出") { store.requestQuit() }
 
                 Divider().opacity(0.3)
@@ -143,6 +139,67 @@ struct SettingsDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var coreKernelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VergeSettingsRow(title: "当前版本") {
+                Text(store.version)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            if let latest = store.latestCoreVersion {
+                VergeSettingsRow(title: "最新版本") {
+                    HStack(spacing: 6) {
+                        Text("v\(latest)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        if store.coreUpdateAvailable {
+                            Text("有更新")
+                                .font(.caption2.weight(.medium))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.orange.opacity(0.15)))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                Button {
+                    Task { await store.checkCoreUpdate() }
+                } label: {
+                    if store.isCheckingCore {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("检查更新")
+                    }
+                }
+                .disabled(store.isCheckingCore || store.isUpdatingCore)
+
+                Button {
+                    Task { await store.updateCore() }
+                } label: {
+                    if store.isUpdatingCore {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(store.coreUpdateAvailable ? "下载更新" : "下载/重装")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(VergeColor.accent)
+                .disabled(store.isUpdatingCore || store.isCheckingCore)
+            }
+            .controlSize(.small)
+
+            if !store.corePath.isEmpty && store.corePath != "—" {
+                Text(store.corePath)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
     }
 
     private var tunRow: some View {

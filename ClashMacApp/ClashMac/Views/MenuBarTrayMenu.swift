@@ -84,7 +84,7 @@ struct MenuBarTrayMenu: View {
                 NSWorkspace.shared.open(ProfileStore.profilesDirectory())
             }
             Button("内核目录") {
-                NSWorkspace.shared.open(RuntimeConfigBuilder.workDirectory())
+                NSWorkspace.shared.open(CoreUpdateService.coreDirectory())
             }
         }
 
@@ -93,7 +93,10 @@ struct MenuBarTrayMenu: View {
                 MainWindowController.open()
                 store.selectedSection = .settings
             }
-            Button("检查更新") {
+            Button("检查内核更新") {
+                Task { await store.checkCoreUpdate() }
+            }
+            Button("下载/更新内核") {
                 Task { await store.updateCore() }
             }
             Button("导出诊断信息") {

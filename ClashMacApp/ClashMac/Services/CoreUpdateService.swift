@@ -46,6 +46,43 @@ enum CoreUpdateService {
         return tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
     }
 
+    struct UpdateStatus: Sendable {
+        let localVersion: String?
+        let remoteVersion: String
+        let isInstalled: Bool
+        let updateAvailable: Bool
+        let installedPath: String?
+    }
+
+    static func checkForUpdate(localVersion: String?) async throws -> UpdateStatus {
+        let remote = try await latestVersion()
+        let installed = installedCoreURL()
+        let local = normalizeVersion(localVersion)
+            ?? installed.flatMap { CoreLocator.coreVersion(at: $0) }.flatMap(normalizeVersion)
+        let remoteNorm = normalizeVersion(remote)
+        let updateAvailable: Bool
+        if local == nil {
+            updateAvailable = true
+        } else if let local, let remoteNorm {
+            updateAvailable = local != remoteNorm
+        } else {
+            updateAvailable = false
+        }
+        return UpdateStatus(
+            localVersion: local,
+            remoteVersion: remote,
+            isInstalled: installed != nil,
+            updateAvailable: updateAvailable,
+            installedPath: installed?.path
+        )
+    }
+
+    private static func normalizeVersion(_ raw: String?) -> String? {
+        guard var text = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        if text.hasPrefix("v") { text.removeFirst() }
+        return text
+    }
+
     static func downloadAndInstall() async throws -> URL {
         let arch = ProcessInfo.processInfo.machineHardwareName
         guard arch == "arm64" || arch == "x86_64" else { throw CoreUpdateError.unsupportedArch }
