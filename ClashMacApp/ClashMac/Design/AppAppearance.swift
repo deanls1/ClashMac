@@ -24,6 +24,22 @@ enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum ProxyGroupSortKey: String, CaseIterable, Identifiable, Sendable {
+    case defaultOrder
+    case name
+    case latency
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .defaultOrder: "默认顺序"
+        case .name: "名称"
+        case .latency: "延迟"
+        }
+    }
+}
+
 enum ConnectionSortKey: String, CaseIterable, Identifiable, Sendable {
     case downloadSpeed
     case uploadSpeed

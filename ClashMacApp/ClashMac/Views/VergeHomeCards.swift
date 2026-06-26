@@ -66,6 +66,8 @@ struct VergeHomeView: View {
                     }
                 }
 
+                startupBanners
+
                 heroSection
 
                 HStack(alignment: .top, spacing: 14) {
@@ -100,6 +102,29 @@ struct VergeHomeView: View {
         .onChange(of: store.groups.count) { _, _ in syncSelection() }
         .onChange(of: store.coreState.isRunning) { _, _ in
             Task { await store.refreshIPInfo() }
+        }
+    }
+
+    @ViewBuilder
+    private var startupBanners: some View {
+        if !store.startupBanners.isEmpty {
+            VStack(spacing: 10) {
+                ForEach(store.startupBanners, id: \.kind) { banner in
+                    VergeStartupBanner(
+                        banner: banner,
+                        isBusy: startupBannerBusy(banner),
+                        onAction: { Task { await store.actOnStartupBanner(banner) } },
+                        onDismiss: { store.dismissStartupBanner(banner.kind) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func startupBannerBusy(_ banner: StartupBanner) -> Bool {
+        switch banner.kind {
+        case .geoData: store.isGeoBannerBusy
+        case .coreUpdate, .coreMissing: store.isCoreBannerBusy
         }
     }
 

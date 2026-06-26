@@ -473,7 +473,32 @@ final class AppStore {
             }
         }
         geoMissingFiles = GeoDataUpdateService.fileStatus().filter { !$0.exists }.map(\.name)
-        startupBanners = []
+
+        var banners: [StartupBanner] = []
+        if CoreLocator.discoverCoreURL() == nil {
+            banners.append(StartupBanner(
+                kind: .coreMissing,
+                title: "未安装 Mihomo 内核",
+                message: "请下载内核后才能启动代理"
+            ))
+        } else {
+            await checkCoreUpdate()
+            if coreUpdateAvailable, let latest = latestCoreVersion {
+                banners.append(StartupBanner(
+                    kind: .coreUpdate,
+                    title: "内核可更新",
+                    message: "最新版本 v\(latest)（当前 \(coreVersionLabel)）"
+                ))
+            }
+        }
+        if !geoMissingFiles.isEmpty {
+            banners.append(StartupBanner(
+                kind: .geoData,
+                title: "缺少 GeoData",
+                message: "缺失文件：\(geoMissingFiles.joined(separator: "、"))"
+            ))
+        }
+        startupBanners = banners.filter { !dismissedBannerKinds.contains($0.kind) }
     }
 
     func dismissStartupBanner(_ kind: StartupBanner.Kind) {

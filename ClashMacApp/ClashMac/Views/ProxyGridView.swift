@@ -5,16 +5,39 @@ struct ProxyGridView: View {
     @State private var searchText = ""
     @State private var expandAll = true
     @State private var hideOffline = false
+    @State private var groupSortKey: ProxyGroupSortKey = .defaultOrder
 
     private var filteredGroups: [ProxyGroup] {
-        guard !searchText.isEmpty else { return store.groups }
-        return store.groups.compactMap { group in
-            let nodes = group.nodes.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText)
+        let base: [ProxyGroup]
+        if searchText.isEmpty {
+            base = store.groups
+        } else {
+            base = store.groups.compactMap { group in
+                let nodes = group.nodes.filter {
+                    $0.name.localizedCaseInsensitiveContains(searchText)
+                }
+                guard !nodes.isEmpty else { return nil }
+                return ProxyGroup(name: group.name, nodes: nodes, selectedNode: group.selectedNode)
             }
-            guard !nodes.isEmpty else { return nil }
-            return ProxyGroup(name: group.name, nodes: nodes, selectedNode: group.selectedNode)
         }
+        return sortedGroups(base)
+    }
+
+    private func sortedGroups(_ groups: [ProxyGroup]) -> [ProxyGroup] {
+        switch groupSortKey {
+        case .defaultOrder:
+            return groups
+        case .name:
+            return groups.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .latency:
+            return groups.sorted { groupLatencyRank($0) < groupLatencyRank($1) }
+        }
+    }
+
+    private func groupLatencyRank(_ group: ProxyGroup) -> Int {
+        group.nodes.compactMap(\.delay).min() ?? Int.max
     }
 
     var body: some View {
@@ -62,6 +85,19 @@ struct ProxyGridView: View {
             }
             .toggleStyle(.checkbox)
             .controlSize(.small)
+
+            Menu {
+                Picker("排序", selection: $groupSortKey) {
+                    ForEach(ProxyGroupSortKey.allCases) { key in
+                        Text(key.label).tag(key)
+                    }
+                }
+            } label: {
+                Label(groupSortKey.label, systemImage: "arrow.up.arrow.down")
+                    .font(VergeTypography.caption)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
 
             Button {
                 withAnimation { expandAll.toggle() }
