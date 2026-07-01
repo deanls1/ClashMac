@@ -108,32 +108,72 @@ def add_top_highlight(base: Image.Image, size: int) -> Image.Image:
     return Image.composite(white, base, overlay)
 
 
-def _mark_geometry(size: int, rect_side: float) -> dict:
-    cx = cy = size / 2.0
-    R = rect_side * 0.300           # 环中线半径基准
-    W = rect_side * 0.118           # 描边宽度
-    Rm = R - W / 2.0                # 圆弧中线半径
-    return {"cx": cx, "cy": cy, "R": R, "W": W, "Rm": Rm}
+def dachshund_mask(size: int, R: float, cx: float, cy: float) -> Image.Image:
+    """腊肠犬「点点」侧面剪影蒙版（面朝右）。返回 L 模式：255=犬身，0=镂空/背景。
+
+    以身长 R 为基准的比例绘制：尾巴 + 四条短腿 + 长身 + 头 + 长吻 + 垂耳，
+    并镂空出眼睛与身上两颗斑点（呼应名字「点点」）。
+    """
+    m = Image.new("L", (size, size), 0)
+    d = ImageDraw.Draw(m)
+
+    def capsule(x0: float, y0: float, x1: float, y1: float) -> None:
+        r = min(abs(x1 - x0), abs(y1 - y0)) / 2.0
+        d.rounded_rectangle([x0, y0, x1, y1], radius=r, fill=255)
+
+    def disc(px: float, py: float, r: float, fill: int = 255) -> None:
+        d.ellipse([px - r, py - r, px + r, py + r], fill=fill)
+
+    def thick_seg(x0: float, y0: float, x1: float, y1: float, w: float) -> None:
+        d.line([x0, y0, x1, y1], fill=255, width=max(1, int(round(w))))
+        r = w / 2.0
+        for px, py in ((x0, y0), (x1, y1)):
+            d.ellipse([px - r, py - r, px + r, py + r], fill=255)
+
+    # 尾巴（左后，微微上翘）
+    thick_seg(cx - 0.34 * R, cy - 0.02 * R, cx - 0.47 * R, cy - 0.20 * R, 0.055 * R)
+
+    # 四条短腿
+    lw = 0.078 * R
+    leg_top = cy + 0.05 * R
+    leg_bot = cy + 0.27 * R
+    for lx in (cx - 0.29 * R, cx - 0.15 * R, cx + 0.05 * R, cx + 0.17 * R):
+        capsule(lx - lw / 2, leg_top, lx + lw / 2, leg_bot)
+
+    # 长身体
+    th = 0.25 * R
+    capsule(cx - 0.37 * R, cy - th / 2, cx + 0.21 * R, cy + th / 2)
+
+    # 头
+    hx, hy, hr = cx + 0.25 * R, cy - 0.05 * R, 0.165 * R
+    disc(hx, hy, hr)
+
+    # 长吻（右端圆润作鼻头）
+    capsule(hx - 0.02 * R, cy - 0.015 * R, cx + 0.47 * R, cy + 0.12 * R)
+
+    # 垂耳（从头后侧垂下的长椭圆）
+    d.ellipse(
+        [cx + 0.09 * R, cy - 0.12 * R, cx + 0.09 * R + 0.15 * R, cy - 0.12 * R + 0.34 * R],
+        fill=255,
+    )
+
+    # —— 镂空细节 ——
+    disc(cx + 0.31 * R, cy - 0.09 * R, 0.032 * R, fill=0)   # 眼睛（一颗「点」）
+    disc(cx + 0.44 * R, cy + 0.05 * R, 0.024 * R, fill=0)   # 鼻孔
+    disc(cx - 0.07 * R, cy - 0.02 * R, 0.045 * R, fill=0)   # 身上斑点「点点」
+    disc(cx + 0.06 * R, cy + 0.02 * R, 0.038 * R, fill=0)   # 身上斑点「点点」
+
+    return m
 
 
 def draw_mark(target: Image.Image, size: int, rect_side: float, color: tuple[int, int, int, int]) -> None:
-    """在 target 上绘制「C + 连接节点」标志（带圆角端点）。"""
-    g = _mark_geometry(size, rect_side)
-    cx, cy, W, Rm = g["cx"], g["cy"], g["W"], g["Rm"]
-    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-
-    # 开口朝右的粗体圆弧（经底/左/顶），留出右侧缺口。
-    start, end = 42, 318
-    bbox = [cx - Rm, cy - Rm, cx + Rm, cy + Rm]
-    d.arc(bbox, start=start, end=end, fill=color, width=int(round(W)))
-
-    cap_r = W / 2.0
-    for ang in (start, end):
-        ax = cx + Rm * math.cos(math.radians(ang))
-        ay = cy + Rm * math.sin(math.radians(ang))
-        d.ellipse([ax - cap_r, ay - cap_r, ax + cap_r, ay + cap_r], fill=color)
-
+    """在 target 上绘制腊肠犬「点点」剪影。"""
+    cx = cy = size / 2.0
+    R = rect_side * 0.86  # 相对绘制区留出边距，避免鼻尖/尾巴顶到边缘。
+    # 犬身整体略上移，使四条腿与画面居中更协调。
+    mask = dachshund_mask(size, R, cx, cy - R * 0.02)
+    layer = Image.new("RGBA", (size, size), (color[0], color[1], color[2], 255))
+    layer.putalpha(mask)
     target.alpha_composite(layer)
 
 
