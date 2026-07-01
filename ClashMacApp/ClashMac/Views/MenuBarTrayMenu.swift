@@ -15,9 +15,16 @@ struct MenuBarTrayMenu: View {
             MainWindowController.open()
         }
 
-        Button("进入轻量模式") {
-            store.enterLightweightMode()
-        }
+        Toggle("轻量模式", isOn: Binding(
+            get: { !store.isDashboardVisible },
+            set: { on in
+                if on {
+                    store.enterLightweightMode()
+                } else {
+                    MainWindowController.open()
+                }
+            }
+        ))
 
         Menu("出站模式 (\(store.mode.label))") {
             ForEach(RunMode.allCases) { mode in
