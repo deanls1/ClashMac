@@ -432,7 +432,7 @@ struct SettingsDetailView: View {
     }
 
     private func portField(value: Binding<Int>, onChange: @escaping () -> Void) -> some View {
-        TextField("", value: value, format: .number)
+        TextField("", value: value, format: .number.grouping(.never))
             .textFieldStyle(.plain)
             .font(VergeTypography.mono)
             .multilineTextAlignment(.trailing)

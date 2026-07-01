@@ -703,17 +703,13 @@ struct VergeSettingsNote: View {
     let text: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Color.clear
-                .frame(width: VergeLayout.settingsLabelWidth, height: 1)
-            Spacer(minLength: 12)
-            Text(text)
-                .font(VergeTypography.small)
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 2)
+        Text(text)
+            .font(VergeTypography.small)
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 1)
+            .padding(.bottom, 2)
     }
 }
 
