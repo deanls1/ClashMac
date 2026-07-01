@@ -8,8 +8,8 @@ struct SubscriptionView: View {
     @State private var renameText = ""
 
     private let profileColumns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: VergeLayout.gridSpacingCompact),
+        GridItem(.flexible(), spacing: VergeLayout.gridSpacingCompact),
     ]
 
     var body: some View {
@@ -75,7 +75,7 @@ struct SubscriptionView: View {
             .scrollContentBackground(.hidden)
         } else {
             ScrollView {
-                LazyVGrid(columns: profileColumns, alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: profileColumns, alignment: .leading, spacing: VergeLayout.gridSpacingCompact) {
                     ForEach(store.profiles) { profile in
                         profileCard(for: profile, showDragHandle: false)
                     }
@@ -179,8 +179,8 @@ struct ProfileEditorSheet: View {
                 .padding(12)
                 .background(VergeColor.surface)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
+                        .strokeBorder(VergeColor.border, lineWidth: VergeStroke.hairline)
                 }
         }
         .frame(minWidth: 640, minHeight: 480)
@@ -252,12 +252,12 @@ private struct VergeProfileCard: View {
 
                 HStack {
                     Text(VergeRelativeTime.chinese(from: profile.updatedAt))
-                        .font(.caption2)
+                        .font(VergeTypography.micro)
                         .foregroundStyle(.tertiary)
                     Spacer()
                     if let expires = profile.expiresAt {
                         Text(expires.formatted(.dateTime.year().month().day()))
-                            .font(.caption2)
+                            .font(VergeTypography.micro)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -281,15 +281,14 @@ private struct VergeProfileCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 11)
         }
-        .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(VergeColor.cardFill)
-        }
+        .background { vergeFlatCardBackground }
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(isActive ? VergeColor.accent.opacity(0.55) : VergeColor.border, lineWidth: isActive ? 1.2 : 0.5)
+            if isActive {
+                RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
+                    .strokeBorder(VergeColor.accent.opacity(0.55), lineWidth: VergeStroke.emphasis)
+            }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: VergeLayout.fieldRadius))
         .onTapGesture(count: 2) { activate() }
         .onHover { hovered = $0 }
         .contextMenu {

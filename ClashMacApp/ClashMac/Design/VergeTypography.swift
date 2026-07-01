@@ -11,6 +11,7 @@ enum VergeTypography {
     static let captionMedium = Font.system(size: 13, weight: .medium)
     static let small = Font.system(size: 12, weight: .regular)
     static let smallMedium = Font.system(size: 12, weight: .medium)
+    static let micro = Font.system(size: 11, weight: .regular)
     static let mono = Font.system(size: 13, weight: .medium, design: .monospaced)
     static let monoLarge = Font.system(size: 14, weight: .semibold, design: .monospaced)
     static let nav = Font.system(size: 15, weight: .regular)

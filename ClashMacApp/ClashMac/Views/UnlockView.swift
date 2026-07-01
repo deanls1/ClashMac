@@ -5,19 +5,16 @@ struct UnlockView: View {
     @State private var showAddForm = false
 
     private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: VergeLayout.gridSpacingCompact),
+        GridItem(.flexible(), spacing: VergeLayout.gridSpacingCompact),
     ]
 
     var body: some View {
         VStack(spacing: 0) {
             VergePageHeader(DashboardSection.unlock.pageTitle) {
-                Button {
+                VergeHeaderIconButton(symbol: "plus", help: "添加自定义检测") {
                     showAddForm.toggle()
-                } label: {
-                    Image(systemName: "plus")
                 }
-                .help("添加自定义检测")
                 Button {
                     Task { await store.runUnlockTests() }
                 } label: {
@@ -45,13 +42,13 @@ struct UnlockView: View {
                                 .buttonStyle(.borderedProminent)
                                 .tint(VergeColor.accent)
                         }
-                        .padding(14)
+                        .padding(VergeLayout.cardPadding)
                         .background(vergeCardBackground)
                     }
 
                     if showAddForm { addForm }
 
-                    LazyVGrid(columns: columns, spacing: 10) {
+                    LazyVGrid(columns: columns, spacing: VergeLayout.gridSpacingCompact) {
                         ForEach(store.unlockTargets) { target in
                             VergeUnlockCard(
                                 target: target,
@@ -98,7 +95,7 @@ private struct VergeUnlockCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
                         .fill(VergeColor.accentSoft.opacity(0.6))
                         .frame(width: 36, height: 36)
                     Image(systemName: target.symbol)
@@ -155,14 +152,14 @@ private struct VergeUnlockCard: View {
         .padding(12)
         .frame(minHeight: 96, alignment: .topLeading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
                 .fill(VergeColor.cardFill)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
                 .strokeBorder(
                     statusBorderColor.opacity(hovered ? 0.35 : 0.2),
-                    lineWidth: 0.5
+                    lineWidth: VergeStroke.hairline
                 )
         }
         .onHover { hovered = $0 }
