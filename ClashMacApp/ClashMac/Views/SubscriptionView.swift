@@ -174,14 +174,7 @@ struct ProfileEditorSheet: View {
                 Task { await store.saveProfileEditor() }
             }
         ) {
-            TextEditor(text: $store.profileEditorYAML)
-                .font(VergeTypography.mono)
-                .padding(12)
-                .background(VergeColor.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: VergeStroke.hairline)
-                }
+            VergeCodeEditor(text: $store.profileEditorYAML)
         }
         .frame(minWidth: 640, minHeight: 480)
     }

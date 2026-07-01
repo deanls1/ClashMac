@@ -89,3 +89,22 @@ struct VergeSegmentedControl<Value: Hashable>: View {
         .buttonStyle(.plain)
     }
 }
+
+// MARK: - 统一的等宽字体编辑器
+//
+// 取代各 Sheet 内重复的 TextEditor + surface 底 + 描边写法（Profile / Rules / DNS）。
+
+struct VergeCodeEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(VergeTypography.mono)
+            .padding(12)
+            .background(VergeColor.surface)
+            .overlay {
+                RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
+                    .strokeBorder(VergeColor.border, lineWidth: VergeStroke.hairline)
+            }
+    }
+}

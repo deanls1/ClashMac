@@ -186,14 +186,7 @@ struct RulesEditorSheet: View {
                 Task { await store.saveRulesAndReload() }
             }
         ) {
-            TextEditor(text: $store.rulesYAML)
-                .font(VergeTypography.mono)
-                .padding(12)
-                .background(VergeColor.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 1)
-                }
+            VergeCodeEditor(text: $store.rulesYAML)
         }
         .frame(width: 600, height: 460)
     }
