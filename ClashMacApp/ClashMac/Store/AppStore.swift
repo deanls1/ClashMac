@@ -1391,29 +1391,30 @@ final class AppStore {
             isRulesFilterPending = false
             return
         }
+        let query = rulesFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 无过滤（切页最常见）：直接「显示全部」，不再起后台任务、不置 pending，
+        // 避免每次进入规则页都产生一次防抖任务与额外重绘。
+        if query.isEmpty {
+            displayedRuleIndices = []
+            rulesMatchCount = rules.count
+            isRulesFilterPending = false
+            return
+        }
         isRulesFilterPending = true
         let snapshot = rules
-        let query = rulesFilter
         let options = rulesFilterOptions
         rulesFilterTask = Task {
             // 防抖：合并快速连续输入，避免每次按键都发起一次全量过滤。
             try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
-            let indices: [Int]
-            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                indices = []
-            } else {
-                indices = await Task.detached(priority: .userInitiated) {
-                    snapshot.enumerated().compactMap { idx, rule in
-                        options.matches("\(rule.summary) \(rule.proxy)", query: query) ? idx : nil
-                    }
-                }.value
-            }
+            let indices = await Task.detached(priority: .userInitiated) {
+                snapshot.enumerated().compactMap { idx, rule in
+                    options.matches("\(rule.summary) \(rule.proxy)", query: query) ? idx : nil
+                }
+            }.value
             guard !Task.isCancelled else { return }
             displayedRuleIndices = indices
-            rulesMatchCount = indices.isEmpty && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? snapshot.count
-                : indices.count
+            rulesMatchCount = indices.count
             isRulesFilterPending = false
         }
     }

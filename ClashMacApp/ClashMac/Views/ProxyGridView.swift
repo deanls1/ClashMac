@@ -55,7 +55,7 @@ struct ProxyGridView: View {
                 }
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 12) {
                         header
                         toolbar
                         ForEach(filteredGroups) { group in
