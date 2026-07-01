@@ -264,7 +264,7 @@ struct VergeHomeView: View {
                         .font(VergeTypography.bodyMedium)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(VergeColor.accentSoft.opacity(0.5)))
+                        .background(RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius).fill(VergeColor.accentSoft.opacity(0.5)))
                 }
                 if !store.groups.isEmpty, selectionGroup != nil {
                     pickerRow("代理组", selection: groupSelection) {
@@ -358,8 +358,8 @@ struct VergeHomeView: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(VergeColor.accent.opacity(0.35), lineWidth: 1)
+            RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
+                .strokeBorder(VergeColor.accent.opacity(0.35), lineWidth: VergeStroke.emphasis)
         }
     }
 
@@ -396,7 +396,7 @@ struct VergeHomeView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
                 .fill(VergeColor.surface)
         }
     }
@@ -507,11 +507,11 @@ struct VergeHomeView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
                     .fill(selected ? VergeColor.accent : VergeColor.cardFill)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(selected ? Color.clear : VergeColor.border, lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
+                            .strokeBorder(selected ? Color.clear : VergeColor.border, lineWidth: VergeStroke.hairline)
                     }
             }
             .foregroundStyle(selected ? Color.white : Color.secondary)
@@ -566,7 +566,7 @@ private struct ClashInfoCardView: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
                 .fill(VergeColor.surface)
         }
     }
@@ -583,7 +583,7 @@ private struct TrafficStatsCardView: View {
                     if store.coreState.isRunning, store.trafficHistory.count > 2 {
                         TrafficChartView(samples: store.trafficHistory, height: 148)
                     } else {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: VergeLayout.innerCardRadius, style: .continuous)
                             .fill(VergeColor.surface)
                             .frame(height: 148)
                             .overlay {
@@ -594,14 +594,7 @@ private struct TrafficStatsCardView: View {
                     }
                 }
                 .padding(8)
-                .background {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(VergeColor.cardFill)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                        }
-                }
+                .background { vergeInnerCardBackground }
 
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6),
