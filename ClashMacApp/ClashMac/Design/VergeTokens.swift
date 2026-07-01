@@ -20,6 +20,22 @@ enum VergeLayout {
     static let settingsGridSpacing: CGFloat = 12
     static let homeMaxWidth: CGFloat = pageMaxWidth
     static let homeGridSpacing: CGFloat = 16
+
+    // MARK: 统一后的圆角/内边距/尺寸阶梯（两级卡片体系：cardRadius 页面级 > innerCardRadius 嵌套 > fieldRadius 字段）
+    static let innerCardRadius: CGFloat = 10
+    static let fieldRadius: CGFloat = 8
+    static let segmentOuterRadius: CGFloat = 9
+    static let segmentInnerRadius: CGFloat = 7
+    static let cardPadding: CGFloat = 14
+    static let gridSpacingCompact: CGFloat = 10
+    static let sheetWidthMedium: CGFloat = 520
+    static let sheetWidthLarge: CGFloat = 600
+}
+
+/// 统一描边粗细：hairline 常态、emphasis 聚焦/选中态。
+enum VergeStroke {
+    static let hairline: CGFloat = 0.5
+    static let emphasis: CGFloat = 1.0
 }
 
 enum VergeColor {
@@ -31,6 +47,8 @@ enum VergeColor {
     static let running = Color(red: 0.18, green: 0.78, blue: 0.48)
     static let stopped = Color.secondary
     static let danger = Color(red: 0.94, green: 0.32, blue: 0.32)
+    /// 强调色填充之上的前景色（选中分段、主按钮文字等）。accent 为蓝色，白色在明暗下均可读。
+    static let onAccent = Color.white
 
     static var canvas: Color { adaptive(light: 0.965, dark: 0.08) }
     static var sidebarBG: Color { adaptive(light: 0.998, dark: 0.06) }
