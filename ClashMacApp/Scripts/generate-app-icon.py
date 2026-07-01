@@ -31,9 +31,11 @@ TRAY_DIR = ASSETS / "TrayTemplate.imageset"
 # 渲染主图的超采样分辨率（越大越平滑，下采样出目标尺寸）。
 MASTER = 2048
 
-# 品牌配色：蓝 -> 紫 对角渐变。
-COLOR_TOP = (60, 126, 246)     # #3C7EF6
-COLOR_BOTTOM = (122, 60, 236)  # #7A3CEC
+# 配色：贴近腊肠犬「点点」毛色的暖色调，蜜糖金 -> 栗棕 对角渐变。
+COLOR_TOP = (245, 184, 96)     # #F5B860 蜜糖金
+COLOR_BOTTOM = (176, 92, 46)   # #B05C2E 栗棕
+DOG_COLOR = (253, 246, 236)    # #FDF6EC 奶白（犬身，含闪电尾巴）
+HEART_COLOR = (233, 74, 88)    # #E94A58 爱心
 
 APP_ICON_SIZES = {
     "icon-16.png": 16,
@@ -108,10 +110,17 @@ def add_top_highlight(base: Image.Image, size: int) -> Image.Image:
     return Image.composite(white, base, overlay)
 
 
+def _dog_geometry(size: int, rect_side: float) -> tuple[float, float, float]:
+    R = rect_side * 0.82            # 相对绘制区留边距，避免鼻尖/尾巴顶到边缘。
+    cx = size / 2.0
+    cy = size / 2.0 - R * 0.03      # 整体略上移，给短腿和头顶爱心留空间。
+    return R, cx, cy
+
+
 def dachshund_mask(size: int, R: float, cx: float, cy: float) -> Image.Image:
     """腊肠犬「点点」侧面剪影蒙版（面朝右）。返回 L 模式：255=犬身，0=镂空/背景。
 
-    以身长 R 为基准的比例绘制：尾巴 + 四条短腿 + 长身 + 头 + 长吻 + 垂耳，
+    刻意强化腊肠犬特征：极长的身体 + 很短的腿 + 长吻 + 垂耳 + 细长上翘尾。
     并镂空出眼睛与身上两颗斑点（呼应名字「点点」）。
     """
     m = Image.new("L", (size, size), 0)
@@ -130,50 +139,76 @@ def dachshund_mask(size: int, R: float, cx: float, cy: float) -> Image.Image:
         for px, py in ((x0, y0), (x1, y1)):
             d.ellipse([px - r, py - r, px + r, py + r], fill=255)
 
-    # 尾巴（左后，微微上翘）
-    thick_seg(cx - 0.34 * R, cy - 0.02 * R, cx - 0.47 * R, cy - 0.20 * R, 0.055 * R)
+    # 尾巴 = Clash 闪电：填充的锯齿闪电多边形，尖端朝上，兼作尾巴与「闪电」符号
+    bolt = [
+        (cx - 0.50 * R, cy - 0.33 * R),   # 尖端（上）
+        (cx - 0.35 * R, cy - 0.11 * R),   # 右侧下行
+        (cx - 0.42 * R, cy - 0.11 * R),   # 内折
+        (cx - 0.33 * R, cy + 0.05 * R),   # 汇入身体（下端，被身体遮住）
+        (cx - 0.53 * R, cy - 0.13 * R),   # 左侧上行
+        (cx - 0.45 * R, cy - 0.13 * R),   # 内折
+    ]
+    d.polygon(bolt, fill=255)
 
-    # 四条短腿
-    lw = 0.078 * R
-    leg_top = cy + 0.05 * R
-    leg_bot = cy + 0.27 * R
-    for lx in (cx - 0.29 * R, cx - 0.15 * R, cx + 0.05 * R, cx + 0.17 * R):
+    # 四条很短的腿（沿长身分布，凸显「短腿」）
+    lw = 0.072 * R
+    leg_top = cy + 0.03 * R
+    leg_bot = cy + 0.20 * R
+    for lx in (cx - 0.36 * R, cx - 0.22 * R, cx + 0.02 * R, cx + 0.14 * R):
         capsule(lx - lw / 2, leg_top, lx + lw / 2, leg_bot)
 
-    # 长身体
-    th = 0.25 * R
-    capsule(cx - 0.37 * R, cy - th / 2, cx + 0.21 * R, cy + th / 2)
+    # 极长的身体（细而长，凸显「长身」）
+    th = 0.20 * R
+    capsule(cx - 0.47 * R, cy - th / 2, cx + 0.19 * R, cy + th / 2)
 
     # 头
-    hx, hy, hr = cx + 0.25 * R, cy - 0.05 * R, 0.165 * R
+    hx, hy, hr = cx + 0.25 * R, cy - 0.05 * R, 0.150 * R
     disc(hx, hy, hr)
 
-    # 长吻（右端圆润作鼻头）
-    capsule(hx - 0.02 * R, cy - 0.015 * R, cx + 0.47 * R, cy + 0.12 * R)
+    # 长吻（右端圆润作鼻头，拉长以更像腊肠犬）
+    capsule(hx - 0.02 * R, cy - 0.005 * R, cx + 0.50 * R, cy + 0.11 * R)
 
     # 垂耳（从头后侧垂下的长椭圆）
     d.ellipse(
-        [cx + 0.09 * R, cy - 0.12 * R, cx + 0.09 * R + 0.15 * R, cy - 0.12 * R + 0.34 * R],
+        [cx + 0.08 * R, cy - 0.14 * R, cx + 0.08 * R + 0.14 * R, cy - 0.14 * R + 0.33 * R],
         fill=255,
     )
 
     # —— 镂空细节 ——
-    disc(cx + 0.31 * R, cy - 0.09 * R, 0.032 * R, fill=0)   # 眼睛（一颗「点」）
-    disc(cx + 0.44 * R, cy + 0.05 * R, 0.024 * R, fill=0)   # 鼻孔
-    disc(cx - 0.07 * R, cy - 0.02 * R, 0.045 * R, fill=0)   # 身上斑点「点点」
-    disc(cx + 0.06 * R, cy + 0.02 * R, 0.038 * R, fill=0)   # 身上斑点「点点」
+    disc(cx + 0.31 * R, cy - 0.085 * R, 0.030 * R, fill=0)  # 眼睛（一颗「点」）
+    disc(cx + 0.47 * R, cy + 0.045 * R, 0.020 * R, fill=0)  # 鼻孔
+    disc(cx - 0.17 * R, cy - 0.005 * R, 0.040 * R, fill=0)  # 身上斑点「点点」
+    disc(cx - 0.05 * R, cy + 0.02 * R, 0.034 * R, fill=0)   # 身上斑点「点点」
 
     return m
 
 
-def draw_mark(target: Image.Image, size: int, rect_side: float, color: tuple[int, int, int, int]) -> None:
-    """在 target 上绘制腊肠犬「点点」剪影。"""
-    cx = cy = size / 2.0
-    R = rect_side * 0.86  # 相对绘制区留出边距，避免鼻尖/尾巴顶到边缘。
-    # 犬身整体略上移，使四条腿与画面居中更协调。
-    mask = dachshund_mask(size, R, cx, cy - R * 0.02)
+def draw_dog(target: Image.Image, size: int, rect_side: float, color: tuple[int, int, int, int]) -> None:
+    R, cx, cy = _dog_geometry(size, rect_side)
+    mask = dachshund_mask(size, R, cx, cy)
     layer = Image.new("RGBA", (size, size), (color[0], color[1], color[2], 255))
     layer.putalpha(mask)
+    target.alpha_composite(layer)
+
+
+def draw_accents(target: Image.Image, size: int, rect_side: float) -> None:
+    """彩色版专属点缀：头顶代表你俩的小爱心（Clash 已由闪电尾巴体现）。"""
+    R, cx, cy = _dog_geometry(size, rect_side)
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+
+    # 小爱心（代表你俩）：头顶上方
+    hx, hy, hs = cx + 0.08 * R, cy - 0.30 * R, 0.12 * R
+
+    def heart(cx0: float, cy0: float, s: float, color: tuple[int, int, int]) -> None:
+        d.ellipse([cx0 - 0.52 * s, cy0 - 0.36 * s, cx0 - 0.02 * s, cy0 + 0.14 * s], fill=color + (255,))
+        d.ellipse([cx0 + 0.02 * s, cy0 - 0.36 * s, cx0 + 0.52 * s, cy0 + 0.14 * s], fill=color + (255,))
+        d.polygon(
+            [(cx0 - 0.50 * s, cy0 - 0.02 * s), (cx0 + 0.50 * s, cy0 - 0.02 * s), (cx0, cy0 + 0.52 * s)],
+            fill=color + (255,),
+        )
+
+    heart(hx, hy, hs, HEART_COLOR)
     target.alpha_composite(layer)
 
 
@@ -200,13 +235,15 @@ def render_colored(size: int, frac: float, shadow: bool) -> Image.Image:
     canvas.alpha_composite(body)
 
     rect_side = size * frac
-    draw_mark(canvas, size, rect_side, (255, 255, 255, 255))
+    draw_dog(canvas, size, rect_side, DOG_COLOR + (255,))
+    draw_accents(canvas, size, rect_side)
     return canvas
 
 
 def render_tray(size: int) -> Image.Image:
+    # 托盘为单色模板：仅保留清晰的腊肠犬剪影（爱心/闪电在 18px 下无法辨识，故不加）。
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw_mark(canvas, size, size, (0, 0, 0, 255))
+    draw_dog(canvas, size, size * 0.96, (0, 0, 0, 255))
     return canvas
 
 
