@@ -108,43 +108,10 @@ struct VergeConfigEditorModeToggle: View {
     @Binding var isVisual: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) { isVisual = true }
-            } label: {
-                modeLabel("可视化", active: isVisual)
-            }
-            .buttonStyle(.plain)
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) { isVisual = false }
-            } label: {
-                modeLabel("高级", active: !isVisual)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(3)
-        .background {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(VergeColor.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                }
-        }
-    }
-
-    private func modeLabel(_ text: String, active: Bool) -> some View {
-        Text(text)
-            .font(active ? VergeTypography.captionMedium : VergeTypography.caption)
-            .foregroundStyle(active ? Color.white : Color.secondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background {
-                if active {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(VergeColor.accent)
-                }
-            }
+        VergeSegmentedControl(
+            selection: $isVisual,
+            items: [(value: true, label: "可视化"), (value: false, label: "高级")]
+        )
     }
 }
 
@@ -234,36 +201,8 @@ struct VergeConfigSegmentRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             labelColumn
-            HStack(spacing: 0) {
-                ForEach(options, id: \.value) { option in
-                    Button {
-                        selection = option.value
-                    } label: {
-                        Text(option.label)
-                            .font(selection == option.value ? VergeTypography.captionMedium : VergeTypography.caption)
-                            .foregroundStyle(selection == option.value ? Color.white : Color.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background {
-                                if selection == option.value {
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(VergeColor.accent)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(2)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(VergeColor.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                    }
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            VergeSegmentedControl(selection: $selection, items: options)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .frame(minHeight: VergeLayout.settingsRowMinHeight)
     }
@@ -337,14 +276,7 @@ struct VergeConfigTextAreaRow: View {
         }
     }
 
-    private var fieldBackground: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(VergeColor.surface)
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(VergeColor.border, lineWidth: 0.5)
-            }
-    }
+    private var fieldBackground: some View { vergeFieldBackground }
 }
 
 struct VergeConfigTagListEditor: View {
