@@ -139,6 +139,7 @@ final class AppStore {
     private let proxyGuard = ProxyGuard()
     private let logStreamer = MihomoLogStreamer()
     private let trafficStreamer = MihomoTrafficStreamer()
+    private let memoryStreamer = MihomoMemoryStreamer()
     private var refreshTask: Task<Void, Never>?
     private var connectionsTask: Task<Void, Never>?
     private var rulesFilterTask: Task<Void, Never>?
@@ -947,7 +948,6 @@ final class AppStore {
                     self.proxyGuard.start(host: "127.0.0.1", port: runtimeSnapshot.mixedPort)
                 }
 
-                await self.updateCoreRuntimeStats()
                 guard !Task.isCancelled, self.coreState.isRunning else { return }
                 try? CLIInstallService.writeEnvironment(runtime: runtimeSnapshot)
                 await self.refreshRuntimeDataWithRetry()
@@ -1728,6 +1728,24 @@ final class AppStore {
         }
     }
 
+    private func startMemoryStreamIfNeeded() {
+        memoryStreamer.stop()
+        memoryStreamer.start(runtime: runtime) { [weak self] inuse in
+            Task { @MainActor in self?.applyMemorySample(bytes: inuse) }
+        }
+    }
+
+    private func applyMemorySample(bytes: Int) {
+        let label = bytes > 0 ? Self.formatMemory(bytes: bytes) : "—"
+        if coreMemoryLabel != label { coreMemoryLabel = label }
+    }
+
+    private static func formatMemory(bytes: Int) -> String {
+        let mb = Double(bytes) / 1024 / 1024
+        if mb >= 1024 { return String(format: "%.2f GB", mb / 1024) }
+        return String(format: "%.1f MB", mb)
+    }
+
     private func applyTrafficSample(upload: Int, download: Int) {
         traffic = TrafficSnapshot(uploadBytesPerSec: upload, downloadBytesPerSec: download)
         trafficHistory.append(TrafficSample(upload: upload, download: download))
@@ -1774,6 +1792,7 @@ final class AppStore {
         beginBackgroundLiveUpdates()
         guard isDashboardVisible else { return }
         beginPeriodicRefresh()
+        startMemoryStreamIfNeeded()
         syncLogStreamForVisibleSection()
     }
 
@@ -1785,6 +1804,7 @@ final class AppStore {
     private func pauseDashboardLiveUpdates() {
         refreshTask?.cancel(); refreshTask = nil
         logStreamer.stop()
+        memoryStreamer.stop()
         logFlushTask?.cancel(); logFlushTask = nil
         flushPendingLogs()
     }
@@ -1806,7 +1826,6 @@ final class AppStore {
                 if selectedSection == .proxy {
                     await refreshGroups()
                 }
-                await updateCoreRuntimeStats()
             }
         }
     }
@@ -1860,21 +1879,6 @@ final class AppStore {
         guard coreState.isRunning else { return }
         version = (try? await api.version()) ?? version
         if let remoteMode = try? await api.fetchMode() { mode = remoteMode }
-        await updateCoreRuntimeStats()
-    }
-
-    private func updateCoreRuntimeStats() async {
-        let pid: Int32?
-        if usingHelper {
-            let status = await helper.tunnelStatus()
-            pid = status.running ? status.pid : nil
-        } else {
-            pid = CoreProcessController.shared.pid
-        }
-        let label = await Task.detached(priority: .utility) {
-            CoreMemoryMonitor.formatted(forPID: pid)
-        }.value
-        if coreMemoryLabel != label { coreMemoryLabel = label }
     }
 
     private func waitForCore(timeout: TimeInterval) async throws {
