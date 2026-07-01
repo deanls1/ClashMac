@@ -88,35 +88,10 @@ struct LogsView: View {
     }
 
     private var logSourcePicker: some View {
-        HStack(spacing: 0) {
-            ForEach(LogsSource.allCases) { source in
-                Button {
-                    store.logsSource = source
-                } label: {
-                    Text(source.label)
-                        .font(store.logsSource == source ? VergeTypography.captionMedium : VergeTypography.caption)
-                        .foregroundStyle(store.logsSource == source ? Color.white : Color.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background {
-                            if store.logsSource == source {
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(VergeColor.accent)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(2)
-        .background {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(VergeColor.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                }
-        }
+        VergeSegmentedControl(
+            selection: $store.logsSource,
+            items: LogsSource.allCases.map { (value: $0, label: $0.label) }
+        )
     }
 
     private var logsFilterBar: some View {
