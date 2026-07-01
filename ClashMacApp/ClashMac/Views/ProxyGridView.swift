@@ -289,14 +289,7 @@ private struct VergeProxyGroupBlock: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(VergeColor.cardFill)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                }
-        }
+        .background { vergeInnerCardBackground }
         .onChange(of: expandAll) { _, value in
             withAnimation { isExpanded = value }
         }

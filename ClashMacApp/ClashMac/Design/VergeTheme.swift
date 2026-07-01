@@ -579,37 +579,6 @@ struct VergeFilterBar: View {
     }
 }
 
-struct VergeSegmentTabs<T: Hashable>: View {
-    @Binding var selection: T
-    let items: [(T, String)]
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(items, id: \.0) { item in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) { selection = item.0 }
-                } label: {
-                    Text(item.1)
-                        .font(selection == item.0 ? VergeTypography.captionMedium : VergeTypography.caption)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 9)
-                        .background {
-                            Capsule().fill(selection == item.0 ? VergeColor.accent : VergeColor.cardFill)
-                        }
-                        .overlay {
-                            Capsule().strokeBorder(
-                                selection == item.0 ? Color.clear : VergeColor.border,
-                                lineWidth: 0.5
-                            )
-                        }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(selection == item.0 ? Color.white : Color.secondary)
-            }
-        }
-    }
-}
-
 struct VergeSettingsSection<Content: View>: View {
     let title: String
     let symbol: String

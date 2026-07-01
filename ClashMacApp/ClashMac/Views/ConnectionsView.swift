@@ -41,11 +41,11 @@ struct ConnectionsView: View {
             )
 
             HStack(spacing: 10) {
-                VergeSegmentTabs(
+                VergeSegmentedControl(
                     selection: $store.connectionTab,
                     items: [
-                        (.active, "活跃 \(store.connections.count)"),
-                        (.closed, "已关闭 \(store.closedConnections.count)")
+                        (value: .active, label: "活跃 \(store.connections.count)"),
+                        (value: .closed, label: "已关闭 \(store.closedConnections.count)")
                     ]
                 )
 
