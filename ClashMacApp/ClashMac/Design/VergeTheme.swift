@@ -864,14 +864,7 @@ struct VergeSettingsCompactField: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(width: width)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(VergeColor.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                    }
-            }
+            .background { vergeFieldBackground }
     }
 }
 

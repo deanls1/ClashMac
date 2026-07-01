@@ -16,10 +16,20 @@ var vergeInnerCardBackground: some View {
         }
 }
 
-/// 列表卡 / 输入卡 / 字段：r8、hairline 描边、无阴影。
+/// 列表卡 / 内容卡：r8、cardFill 填充、hairline 描边、无阴影。
 var vergeFlatCardBackground: some View {
     RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
         .fill(VergeColor.cardFill)
+        .overlay {
+            RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
+                .strokeBorder(VergeColor.border, lineWidth: VergeStroke.hairline)
+        }
+}
+
+/// 输入框 / 紧凑字段：r8、surface 填充（比卡片更「凹陷」）、hairline 描边。
+var vergeFieldBackground: some View {
+    RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
+        .fill(VergeColor.surface)
         .overlay {
             RoundedRectangle(cornerRadius: VergeLayout.fieldRadius, style: .continuous)
                 .strokeBorder(VergeColor.border, lineWidth: VergeStroke.hairline)

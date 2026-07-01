@@ -74,13 +74,13 @@ struct SettingsDetailView: View {
                 }
             }
         }
-        .padding(14)
+        .padding(VergeLayout.cardPadding)
         .background {
             RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
                 .fill(isError ? VergeColor.danger.opacity(0.06) : VergeColor.accentSoft.opacity(0.45))
                 .overlay {
                     RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
-                        .strokeBorder(isError ? VergeColor.danger.opacity(0.2) : VergeColor.border, lineWidth: 0.5)
+                        .strokeBorder(isError ? VergeColor.danger.opacity(0.2) : VergeColor.border, lineWidth: VergeStroke.hairline)
                 }
         }
     }
@@ -439,14 +439,7 @@ struct SettingsDetailView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(width: 108)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(VergeColor.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(VergeColor.border, lineWidth: 0.5)
-                    }
-            }
+            .background { vergeFieldBackground }
             .onChange(of: value.wrappedValue) { _, _ in onChange() }
     }
 }
