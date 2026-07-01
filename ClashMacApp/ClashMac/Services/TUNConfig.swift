@@ -3,7 +3,7 @@ import Foundation
 /// TUN 模式配置，对齐 Clash Verge Rev 虚拟网卡设置项。
 struct TUNConfig: Codable, Equatable, Sendable {
     var stack: String = "system"
-    var device: String = "utun1024"
+    var device: String = ClashMacPorts.defaultTUNDevice
     var autoRoute: Bool = true
     var strictRoute: Bool = false
     var autoDetectInterface: Bool = true
@@ -46,8 +46,17 @@ enum TUNConfigStore {
     static func load() -> TUNConfig {
         let url = fileURL()
         guard let data = try? Data(contentsOf: url),
-              let config = try? JSONDecoder().decode(TUNConfig.self, from: data) else {
+              var config = try? JSONDecoder().decode(TUNConfig.self, from: data) else {
             return .vergeDefault
+        }
+        if config.device == "utun1024" {
+            config.device = ClashMacPorts.defaultTUNDevice
+            try? save(config)
+        }
+        if config.stack == "mixed" || config.strictRoute {
+            config.stack = "system"
+            config.strictRoute = false
+            try? save(config)
         }
         return config
     }

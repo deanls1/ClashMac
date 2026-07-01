@@ -9,9 +9,11 @@
 		<key>com.clashmac.helper</key>
 		<true/>
 	</dict>
-	<key>ProgramArguments</key>
-	<array>
-		<string>Contents/Library/LaunchServices/ClashMacHelper</string>
-	</array>
+	<key>BundleProgram</key>
+	<string>Contents/Library/LaunchServices/ClashMacHelper</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
 </dict>
 </plist>

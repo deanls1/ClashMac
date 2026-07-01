@@ -32,8 +32,18 @@ struct MihomoAPIClient: Sendable {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown"
     }
 
-    func isReachable() async -> Bool {
-        (try? await version()) != nil
+    func isReachable(timeout: TimeInterval = 2) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let gate = ReachabilityGate()
+            Task {
+                let ok = (try? await version()) != nil
+                gate.finish(ok, continuation: continuation)
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(timeout))
+                gate.finish(false, continuation: continuation)
+            }
+        }
     }
 
     func fetchMode() async throws -> RunMode {
@@ -56,13 +66,21 @@ struct MihomoAPIClient: Sendable {
             throw MihomoAPIError.invalidResponse
         }
 
+        let leafTypes: Set<String> = [
+            "Direct", "Reject", "RejectDrop", "Pass", "Dns", "Compatible",
+            "Shadowsocks", "ShadowsocksR", "Snell", "Socks5", "Http", "Https",
+            "Vmess", "Vless", "Trojan", "Hysteria", "Hysteria2", "Tuic", "TuicServer",
+            "WireGuard", "Ssh", "Mieru", "AnyTLS", "Internal",
+        ]
+
         return proxies.compactMap { name, value -> ProxyGroup? in
-            guard let dict = value as? [String: Any],
-                  let groupType = dict["type"] as? String,
-                  groupType == "Selector" || groupType == "URLTest" || groupType == "Fallback",
-                  let all = dict["all"] as? [String] else {
-                return nil
-            }
+            guard name != "GLOBAL" else { return nil }
+            guard let dict = value as? [String: Any] else { return nil }
+            let groupType = dict["type"] as? String ?? "Selector"
+            if leafTypes.contains(groupType) { return nil }
+
+            let all = dict["all"] as? [String] ?? []
+            guard !all.isEmpty || isGroupType(groupType) else { return nil }
 
             let selected = dict["now"] as? String
             let nodes = all.map { nodeName -> ProxyNode in
@@ -77,9 +95,45 @@ struct MihomoAPIClient: Sendable {
                 }
                 return node
             }
-            return ProxyGroup(name: name, nodes: nodes, selectedNode: selected)
+            return ProxyGroup(name: name, nodes: nodes, selectedNode: selected, groupType: groupType)
         }
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private func isGroupType(_ type: String) -> Bool {
+        let groupTypes: Set<String> = [
+            "Selector", "URLTest", "Fallback", "LoadBalance", "Relay", "Smart",
+            "select", "url-test", "fallback", "load-balance", "relay",
+        ]
+        return groupTypes.contains(type)
+    }
+
+    func fetchProxyProviders() async throws -> [ProxyProvider] {
+        let json = try await getJSON("/providers/proxies")
+        guard let providers = json["providers"] as? [String: Any] else {
+            throw MihomoAPIError.invalidResponse
+        }
+        return providers.compactMap { name, value -> ProxyProvider? in
+            guard let dict = value as? [String: Any] else { return nil }
+            let vehicleType = dict["vehicleType"] as? String ?? "—"
+            let updatedAt = parseProviderDate(dict["updatedAt"] as? String)
+            return ProxyProvider(name: name, vehicleType: vehicleType, updatedAt: updatedAt)
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    func updateProxyProvider(_ name: String) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        _ = try await put("/providers/proxies/\(encoded)", body: Data())
+    }
+
+    private func parseProviderDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) { return date }
+        let standard = ISO8601DateFormatter()
+        return standard.date(from: value)
     }
 
     func selectProxy(group: String, node: String) async throws {
@@ -99,9 +153,16 @@ struct MihomoAPIClient: Sendable {
         return delay
     }
 
+    func setLogLevel(_ level: LogLevel) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["log-level": level.rawValue])
+        _ = try await patch("/configs", body: body)
+    }
+
     func fetchConnections() async throws -> [ConnectionItem] {
         let json = try await getJSON("/connections")
-        guard let list = json["connections"] as? [[String: Any]] else {
+        guard let raw = json["connections"] else { return [] }
+        if raw is NSNull { return [] }
+        guard let list = raw as? [[String: Any]] else {
             throw MihomoAPIError.invalidResponse
         }
         return list.compactMap { parseConnection($0) }
@@ -140,24 +201,37 @@ struct MihomoAPIClient: Sendable {
     private func parseConnection(_ item: [String: Any]) -> ConnectionItem? {
         guard let id = item["id"] as? String else { return nil }
         let metadata = item["metadata"] as? [String: Any] ?? [:]
-        let host = metadata["host"] as? String ?? metadata["destinationIP"] as? String ?? "—"
-        let process = metadata["process"] as? String ?? metadata["processPath"] as? String ?? "—"
-        let rule = metadata["rule"] as? String ?? "—"
+        let host = metadata["host"] as? String
+            ?? metadata["destinationIP"] as? String
+            ?? metadata["destination"] as? String
+            ?? "—"
+        let processPath = metadata["processPath"] as? String ?? metadata["process"] as? String ?? "—"
+        let process = (processPath as NSString).lastPathComponent
+        let ruleName = metadata["rule"] as? String ?? "—"
+        let rulePayload = metadata["rulePayload"] as? String ?? metadata["payload"] as? String ?? ""
+        let rule = rulePayload.isEmpty ? ruleName : "\(ruleName) · \(rulePayload)"
         let chains = item["chains"] as? [String] ?? []
-        let upload = item["upload"] as? Int ?? 0
-        let download = item["download"] as? Int ?? 0
+        let upload = Self.jsonInt(item["upload"])
+        let download = Self.jsonInt(item["download"])
         let start = item["start"] as? String ?? ""
         let startedAt = ISO8601DateFormatter().date(from: start) ?? .now
         return ConnectionItem(
             id: id,
             host: host,
-            process: (process as NSString).lastPathComponent,
+            process: process.isEmpty ? "—" : process,
             rule: rule,
             chain: chains.joined(separator: " → "),
             upload: upload,
             download: download,
             startedAt: startedAt
         )
+    }
+
+    private static func jsonInt(_ value: Any?) -> Int {
+        if let v = value as? Int { return v }
+        if let n = value as? NSNumber { return n.intValue }
+        if let s = value as? String, let v = Int(s) { return v }
+        return 0
     }
 
     private func parseRule(index: Int, _ item: [String: Any]) -> RuleItem? {
@@ -219,5 +293,18 @@ struct MihomoAPIClient: Sendable {
                 }
             }
         }
+    }
+}
+
+private final class ReachabilityGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var finished = false
+
+    func finish(_ value: Bool, continuation: CheckedContinuation<Bool, Never>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finished else { return }
+        finished = true
+        continuation.resume(returning: value)
     }
 }

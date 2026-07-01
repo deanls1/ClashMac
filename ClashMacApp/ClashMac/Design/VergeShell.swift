@@ -64,7 +64,6 @@ struct VergePageHeader<Trailing: View>: View {
                 trailing()
             }
         }
-        .padding(.horizontal, VergeLayout.contentPadding)
         .padding(.top, 20)
         .padding(.bottom, 12)
     }
@@ -121,13 +120,37 @@ struct VergeStatusBadge: View {
     let text: String
     let color: Color
 
+    enum Tone {
+        case neutral, success, warning, danger, accent
+
+        var color: Color {
+            switch self {
+            case .neutral: .secondary
+            case .success: VergeColor.running
+            case .warning: VergeColor.upload
+            case .danger: VergeColor.danger
+            case .accent: VergeColor.accent
+            }
+        }
+    }
+
+    init(text: String, color: Color) {
+        self.text = text
+        self.color = color
+    }
+
+    init(text: String, tone: Tone) {
+        self.text = text
+        self.color = tone.color
+    }
+
     var body: some View {
         Text(text)
             .font(VergeTypography.smallMedium)
             .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(color.opacity(0.12)))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule(style: .continuous).fill(color.opacity(0.12)))
     }
 }
 
@@ -138,7 +161,7 @@ struct VergeMiniStat: View {
     let symbol: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Label(title, systemImage: symbol)
                 .font(VergeTypography.small)
                 .foregroundStyle(.secondary)
@@ -146,7 +169,7 @@ struct VergeMiniStat: View {
                 .font(VergeTypography.statValue)
                 .foregroundStyle(color)
         }
-        .padding(14)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -196,10 +219,10 @@ struct VergeSidebarTrafficFooter: View {
     let memoryLabel: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if isRunning, samples.count > 2 {
-                TrafficChartView(samples: samples, height: 48)
-                    .padding(8)
+                TrafficChartView(samples: samples, height: 42)
+                    .padding(6)
                     .background {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(VergeColor.cardFill)
@@ -211,7 +234,7 @@ struct VergeSidebarTrafficFooter: View {
             } else {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(VergeColor.surface)
-                    .frame(height: 48)
+                    .frame(height: 42)
                     .overlay {
                         Text("流量曲线")
                             .font(VergeTypography.small)
@@ -224,8 +247,8 @@ struct VergeSidebarTrafficFooter: View {
             footerStat(symbol: "memorychip", color: .secondary, value: memoryLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background {
             VergeColor.sidebarBG
                 .overlay(alignment: .top) {
@@ -243,5 +266,54 @@ struct VergeSidebarTrafficFooter: View {
                 .font(VergeTypography.mono)
                 .foregroundStyle(color == .secondary ? Color.secondary : color)
         }
+    }
+}
+
+struct VergeEditorShell<Content: View>: View {
+    let title: String
+    let saveTitle: String
+    let cancel: () -> Void
+    let save: () -> Void
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.text")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(VergeColor.accent)
+                    .frame(width: 22, height: 22)
+                Text(title)
+                    .font(VergeTypography.sectionTitle)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+            .background(VergeColor.cardFill.opacity(0.92))
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(VergeColor.border).frame(height: 0.5)
+            }
+
+            content
+                .padding(16)
+
+            HStack {
+                Spacer()
+                Button("取消", action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                Button(saveTitle, action: save)
+                    .buttonStyle(.borderedProminent)
+                    .tint(VergeColor.accent)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(VergeColor.cardFill.opacity(0.92))
+            .overlay(alignment: .top) {
+                Rectangle().fill(VergeColor.border).frame(height: 0.5)
+            }
+        }
+        .background(VergeColor.canvas)
     }
 }

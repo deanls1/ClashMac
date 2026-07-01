@@ -6,7 +6,19 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if NSApp.applicationIconImage == nil, let logo = NSImage(named: "AppLogo") {
+            NSApp.applicationIconImage = logo
+        }
         configureMainMenu()
+        MenuBarManager.markApplicationReady()
+        if let store = Self.store {
+            MenuBarManager.shared.attach(to: store)
+        }
+    }
+
+    // 关闭主窗口仅隐藏界面，应用继续驻留菜单栏；仅「退出」菜单/快捷键才真正终止。
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -22,8 +34,6 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         HotkeyService.shared.removeMonitor()
-        SystemProxyController.disableActiveServiceProxy()
-        CoreProcessController.shared.stop(waitForExit: false)
     }
 
     private func configureMainMenu() {

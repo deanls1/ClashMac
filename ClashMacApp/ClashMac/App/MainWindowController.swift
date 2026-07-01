@@ -24,6 +24,7 @@ enum MainWindowController {
         if let openWindowAction {
             openWindowAction(id: "dashboard")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                centerDashboardWindows()
                 if !focusExistingDashboard() {
                     presentFallbackWindow(store: store)
                 }
@@ -32,6 +33,17 @@ enum MainWindowController {
         }
 
         presentFallbackWindow(store: store)
+    }
+
+    /// 关闭仪表板窗口并释放界面资源（轻量模式用）：关闭 SwiftUI Window 场景窗口与回退窗口，
+    /// 让 SwiftUI 释放视图树，仅保留内核与菜单栏。
+    static func closeDashboard() {
+        for window in NSApp.windows where isDashboardWindow(window) {
+            window.close()
+        }
+        fallbackWindow?.close()
+        fallbackWindow = nil
+        NSApp.setActivationPolicy(.accessory)
     }
 
     static func dashboardDidClose() {
@@ -65,6 +77,12 @@ enum MainWindowController {
         if window.title == "Clash Mac" { return true }
         if window.identifier?.rawValue.contains("dashboard") == true { return true }
         return window.identifier?.rawValue == "com.clashmac.dashboard"
+    }
+
+    private static func centerDashboardWindows() {
+        for window in NSApp.windows where isDashboardWindow(window) {
+            window.center()
+        }
     }
 
     private static func presentFallbackWindow(store: AppStore) {

@@ -78,9 +78,29 @@ enum CoreUpdateService {
     }
 
     private static func normalizeVersion(_ raw: String?) -> String? {
-        guard var text = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-        if text.hasPrefix("v") { text.removeFirst() }
-        return text
+        extractSemanticVersion(from: raw)
+    }
+
+    static func extractSemanticVersion(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        if let match = text.firstMatch(of: /\d+\.\d+\.\d+/) {
+            return String(match.0)
+        }
+        var normalized = text
+        if normalized.hasPrefix("v") { normalized.removeFirst() }
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    static func displayVersion(from raw: String?) -> String {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, raw != "—" else {
+            return "未安装"
+        }
+        if let semver = extractSemanticVersion(from: raw) {
+            return "v\(semver)"
+        }
+        return raw
     }
 
     static func downloadAndInstall(onProgress: (@Sendable (Double, String) -> Void)? = nil) async throws -> URL {

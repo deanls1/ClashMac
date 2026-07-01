@@ -1,12 +1,29 @@
+import Darwin
 import Foundation
 
+/// 单例：内核进程句柄必须跨多次 XPC 连接存活。
+/// 客户端每次调用都会新建并随即 invalidate 连接，若 HelperService 按连接创建，
+/// startTunnel 启动的 Process 会随连接释放而丢失（表现为 tunnelStatus running=false、内核变孤儿）。
 final class HelperService: NSObject, HelperProtocol {
-    private let clientEGID: gid_t
+    nonisolated(unsafe) static let shared = HelperService()
+
+    private let lock = NSLock()
+    private var clientEGID: gid_t = 0
     private var coreProcess: Process?
     private var corePID: Int32 = 0
+    private var lastConfigPath: String?
+    private var lastCorePath: String?
 
-    init(clientEGID: gid_t) {
-        self.clientEGID = clientEGID
+    func updateClientEGID(_ egid: gid_t) {
+        lock.lock()
+        clientEGID = egid
+        lock.unlock()
+    }
+
+    private func currentClientEGID() -> gid_t {
+        lock.lock()
+        defer { lock.unlock() }
+        return clientEGID
     }
 
     func startTunnel(
@@ -16,9 +33,9 @@ final class HelperService: NSObject, HelperProtocol {
         secret: String,
         reply: @escaping (Bool, String?) -> Void
     ) {
-        stopTunnel { _, _ in }
+        stopCoreIfRunning()
 
-        guard Self.validateClientGID(clientEGID, configPath: configPath) else {
+        guard Self.validateClientGID(currentClientEGID(), configPath: configPath) else {
             reply(false, "调用方 GID 校验失败")
             return
         }
@@ -48,47 +65,141 @@ final class HelperService: NSObject, HelperProtocol {
             return
         }
 
+        // 清理任何使用本应用配置的残留 mihomo（root 启动的孤儿用户态杀不掉），保证单实例，
+        // 否则多个进程抢占同一控制 socket 会导致 app 连到非转发实例 → 日志/流量为空。
+        let socketPath = Self.unixControllerPath(from: configPath)
+        Self.reapStrayCores(configPath: configPath, corePath: corePath)
+        try? FileManager.default.removeItem(atPath: socketPath)
+
         do {
             try FileManager.default.createDirectory(atPath: workDirectory, withIntermediateDirectories: true)
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: corePath)
+            // secret 不走命令行（避免 ps 泄露）；mihomo 从已校验的 config 的 `secret:` 字段读取。
             proc.arguments = [
                 "-f", configPath,
                 "-d", workDirectory,
-                "-ext-ctl-unix", Self.unixControllerPath(from: configPath),
-                "-secret", secret,
+                "-ext-ctl-unix", socketPath,
             ]
             proc.currentDirectoryURL = URL(fileURLWithPath: workDirectory)
             try proc.run()
+            lock.lock()
             coreProcess = proc
             corePID = proc.processIdentifier
+            lastConfigPath = configPath
+            lastCorePath = corePath
+            lock.unlock()
             reply(true, nil)
         } catch {
             reply(false, error.localizedDescription)
         }
     }
 
+    /// 枚举并 SIGKILL 所有命令行匹配本应用 config/core 的 mihomo 进程（helper 以 root 运行，可清理 root 孤儿）。
+    /// 仅当 config/core 路径本身落在 HelperPathPolicy 允许范围内时才执行，避免被诱导以任意路径匹配杀进程。
+    private static func reapStrayCores(configPath: String, corePath: String) {
+        guard HelperPathPolicy.isAllowedConfigPath(configPath),
+              HelperPathPolicy.isAllowedCorePath(corePath) else {
+            return
+        }
+        for pid in runningCorePIDs(configPath: configPath, corePath: corePath) {
+            kill(pid, SIGKILL)
+        }
+    }
+
+    private static func runningCorePIDs(configPath: String, corePath: String) -> [Int32] {
+        corePIDs { command in
+            command.contains(configPath) || command.contains(corePath)
+        }
+    }
+
+    /// helper 可能被 launchd（KeepAlive）重启而丢失子进程句柄；用 ps 兜底找回正在运行的内核 pid。
+    private static func findRunningCorePID(configPath: String?) -> Int32? {
+        let marker = configPath ?? "ClashMac/work/config.yaml"
+        return corePIDs { $0.contains(marker) }.first
+    }
+
+    /// 扫描 ps，返回命令行含 "mihomo" 且满足 predicate 的进程 pid（排除自身）。
+    private static func corePIDs(where predicate: (String) -> Bool) -> [Int32] {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-axo", "pid=,command="]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+        } catch {
+            return []
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        guard let output = String(data: data, encoding: .utf8) else { return [] }
+
+        let me = getpid()
+        var pids: [Int32] = []
+        for rawLine in output.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard let spaceIndex = line.firstIndex(of: " ") else { continue }
+            let pidPart = String(line[..<spaceIndex])
+            let command = String(line[line.index(after: spaceIndex)...])
+            guard let pid = Int32(pidPart), pid != me else { continue }
+            guard command.contains("mihomo"), predicate(command) else { continue }
+            pids.append(pid)
+        }
+        return pids
+    }
+
     func stopTunnel(reply: @escaping (Bool, String?) -> Void) {
-        guard Self.validateClientGID(clientEGID, configPath: nil) else {
+        guard Self.validateClientGID(currentClientEGID(), configPath: nil) else {
             reply(false, "调用方 GID 校验失败")
             return
         }
-        if let proc = coreProcess, proc.isRunning {
-            proc.terminate()
-            proc.waitUntilExit()
-        }
-        coreProcess = nil
-        corePID = 0
+        stopCoreIfRunning()
         reply(true, nil)
     }
 
+    private func stopCoreIfRunning(timeout: TimeInterval = 2) {
+        lock.lock()
+        let proc = coreProcess
+        let configPath = lastConfigPath
+        let corePath = lastCorePath
+        coreProcess = nil
+        corePID = 0
+        lock.unlock()
+
+        if let proc, proc.isRunning {
+            proc.terminate()
+            let deadline = Date().addingTimeInterval(timeout)
+            while proc.isRunning && Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            if proc.isRunning {
+                kill(proc.processIdentifier, SIGKILL)
+            }
+        }
+
+        // 兜底清理任何残留实例，避免孤儿进程占用 socket。
+        if let configPath, let corePath {
+            Self.reapStrayCores(configPath: configPath, corePath: corePath)
+        }
+    }
+
     func tunnelStatus(reply: @escaping (Bool, Int32) -> Void) {
-        guard Self.validateClientGID(clientEGID, configPath: nil) else {
+        guard Self.validateClientGID(currentClientEGID(), configPath: nil) else {
             reply(false, 0)
             return
         }
-        let running = coreProcess?.isRunning == true
-        reply(running, running ? corePID : 0)
+        lock.lock()
+        var running = coreProcess?.isRunning == true
+        var pid = running ? corePID : 0
+        let cfg = lastConfigPath
+        lock.unlock()
+        if !running, let found = Self.findRunningCorePID(configPath: cfg) {
+            running = true
+            pid = found
+        }
+        reply(running, pid)
     }
 
     private static func validateClientGID(_ egid: gid_t, configPath: String?) -> Bool {
@@ -188,8 +299,9 @@ final class HelperListener: NSObject, NSXPCListenerDelegate {
               let egid = HelperAudit.effectiveGID(for: connection) else {
             return false
         }
-        connection.exportedInterface = NSXPCInterface(with: HelperProtocol.self)
-        connection.exportedObject = HelperService(clientEGID: egid)
+        HelperService.shared.updateClientEGID(egid)
+        connection.exportedInterface = HelperConstants.makeInterface()
+        connection.exportedObject = HelperService.shared
         connection.resume()
         return true
     }

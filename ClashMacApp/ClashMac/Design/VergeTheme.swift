@@ -1,63 +1,23 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Verge-inspired design tokens
-
-enum VergeLayout {
-    static let sidebarWidth: CGFloat = 220
-    static let topBarHeight: CGFloat = 0
-    static let contentPadding: CGFloat = 22
-    static let cardRadius: CGFloat = 12
-    static let nodeCardMinWidth: CGFloat = 148
-    static let powerButtonSize: CGFloat = 120
-}
-
-enum VergeColor {
-    static let accent = Color(red: 0.09, green: 0.47, blue: 1.0)
-    static let accentSoft = Color(red: 0.09, green: 0.47, blue: 1.0).opacity(0.14)
-    static let accentGlow = Color(red: 0.09, green: 0.47, blue: 1.0).opacity(0.28)
-    static let upload = Color(red: 0.96, green: 0.45, blue: 0.18)
-    static let download = Color(red: 0.20, green: 0.58, blue: 0.98)
-    static let running = Color(red: 0.18, green: 0.78, blue: 0.48)
-    static let stopped = Color.secondary
-    static let danger = Color(red: 0.94, green: 0.32, blue: 0.32)
-
-    static var canvas: Color { adaptive(light: 0.965, dark: 0.08) }
-    static var sidebarBG: Color { adaptive(light: 0.998, dark: 0.06) }
-    static var cardFill: Color { adaptive(light: 1.0, dark: 0.12) }
-    static var surface: Color { adaptive(light: 0.0, dark: 1.0, lightAlpha: 0.045, darkAlpha: 0.06) }
-    static var surfaceElevated: Color { adaptive(light: 1.0, dark: 0.14) }
-    static var border: Color { adaptive(light: 0.0, dark: 1.0, lightAlpha: 0.08, darkAlpha: 0.12) }
-    static var shadow: Color { Color.black.opacity(0.045) }
-    static var heroGlow: Color { accentGlow.opacity(0.45) }
-
-    private static func adaptive(
-        light: CGFloat,
-        dark: CGFloat,
-        lightAlpha: CGFloat? = nil,
-        darkAlpha: CGFloat? = nil
-    ) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            if let lightAlpha, let darkAlpha {
-                return NSColor(white: 1.0, alpha: isDark ? darkAlpha : lightAlpha)
-            }
-            let value = isDark ? dark : light
-            return NSColor(red: value, green: value, blue: value, alpha: 1)
-        })
-    }
-
-    static func latency(_ ms: Int?) -> Color {
-        guard let ms else { return .secondary }
-        switch ms {
-        case ..<80: return running
-        case ..<200: return Color(red: 0.95, green: 0.75, blue: 0.2)
-        default: return Color(red: 0.95, green: 0.35, blue: 0.35)
-        }
-    }
-}
+// 设计 token（VergeLayout / VergeColor）已抽到 VergeTokens.swift；本文件仅保留可复用 View 组件。
 
 // MARK: - Shell
+
+/// 隔离每秒变化的流量/内存读取，避免侧边栏导航列表随流量 1Hz 重绘（侧边栏在所有页面常驻）。
+private struct SidebarTrafficFooterContainer: View {
+    let store: AppStore
+
+    var body: some View {
+        VergeSidebarTrafficFooter(
+            traffic: store.traffic,
+            samples: store.trafficHistory,
+            isRunning: store.isProxyEnabled,
+            memoryLabel: store.coreMemoryLabel
+        )
+    }
+}
 
 struct VergeSidebar: View {
     @Bindable var store: AppStore
@@ -66,28 +26,21 @@ struct VergeSidebar: View {
         VStack(spacing: 0) {
             brandHeader
             ScrollView {
-                VStack(spacing: 4) {
+                VStack(spacing: 2) {
                     ForEach(DashboardSection.allCases) { section in
                         VergeNavRow(
                             section: section,
                             badge: section.badgeCount(from: store),
                             isSelected: store.selectedSection == section
                         ) {
-                            withAnimation(.easeInOut(duration: 0.18)) {
-                                store.selectedSection = section
-                            }
+                            store.selectedSection = section
                         }
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
             }
-            VergeSidebarTrafficFooter(
-                traffic: store.traffic,
-                samples: store.trafficHistory,
-                isRunning: store.coreState.isRunning,
-                memoryLabel: store.coreMemoryLabel
-            )
+            SidebarTrafficFooterContainer(store: store)
         }
         .frame(width: VergeLayout.sidebarWidth)
         .background {
@@ -100,37 +53,20 @@ struct VergeSidebar: View {
 
     private var brandHeader: some View {
         HStack(spacing: 10) {
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    if let icon = NSApplication.shared.applicationIconImage {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .interpolation(.high)
-                    } else {
-                        Image(systemName: "cat.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.primary)
-                    }
-                }
+            Image("AppLogo")
+                .resizable()
+                .interpolation(.high)
                 .frame(width: 32, height: 32)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text("NEW")
-                    .font(.system(size: 7, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.red))
-                    .offset(x: 8, y: -6)
-            }
             VStack(alignment: .leading, spacing: 2) {
                 Text("Clash Mac")
                     .font(VergeTypography.sectionTitle)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
     }
 }
 
@@ -143,7 +79,7 @@ private struct VergeNavRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 VergeNavIcon(section: section)
                 Text(section.label)
                     .font(isSelected ? VergeTypography.navSelected : VergeTypography.nav)
@@ -155,8 +91,8 @@ private struct VergeNavRow: View {
                         .foregroundStyle(isSelected ? VergeColor.accent : .secondary)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
             .background {
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -206,16 +142,16 @@ struct VergeTopBar: View {
                 Task { await store.togglePower() }
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: store.coreState.isRunning ? "stop.fill" : "play.fill")
+                    Image(systemName: store.isProxyEnabled ? "stop.fill" : "play.fill")
                         .font(.system(size: 10, weight: .bold))
-                    Text(store.coreState.isRunning ? "停止" : "启动")
+                    Text(store.isProxyEnabled ? "停止" : "启动")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
             }
             .buttonStyle(.borderedProminent)
-            .tint(store.coreState.isRunning ? VergeColor.danger : VergeColor.accent)
+            .tint(store.isProxyEnabled ? VergeColor.danger : VergeColor.accent)
             .disabled(isBusy)
         }
         .padding(.horizontal, VergeLayout.contentPadding)
@@ -227,9 +163,7 @@ struct VergeTopBar: View {
     }
 
     private var isBusy: Bool {
-        if case .starting = store.coreState { return true }
-        if case .stopping = store.coreState { return true }
-        return false
+        store.isPowerTransitioning
     }
 }
 
@@ -274,6 +208,7 @@ struct VergeModePills: View {
 struct VergePowerButton: View {
     let isRunning: Bool
     let isBusy: Bool
+    var isStarting: Bool = false
     let action: () -> Void
 
     @State private var pulse = false
@@ -335,7 +270,7 @@ struct VergePowerButton: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(isBusy)
+        .disabled(isBusy && !isStarting)
         .onAppear { updatePulse() }
         .onChange(of: isRunning) { _, _ in updatePulse() }
     }
@@ -477,75 +412,62 @@ struct VergeProxyNodeCard: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
+            HStack(spacing: 8) {
+                if node.isSelected {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(VergeColor.accent)
+                        .frame(width: 3, height: 26)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
                     Text(node.name)
-                        .font(VergeTypography.bodyMedium)
+                        .font(VergeTypography.captionMedium)
                         .foregroundStyle(node.isAlive ? .primary : .secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 4)
-                    if node.isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(VergeColor.accent)
-                    }
-                }
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                HStack(spacing: 6) {
-                    if let flag = NodeNameParser.countryFlag(from: node.name) {
-                        Text(flag).font(.body)
-                    }
-                    ForEach(tags, id: \.self) { tag in
-                        Text(tag)
+                    if !tags.isEmpty {
+                        Text(tags.prefix(2).joined(separator: " · "))
                             .font(VergeTypography.small)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(VergeColor.surface))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
                     }
-                    Spacer(minLength: 0)
                 }
 
-                HStack {
-                    if isTesting {
-                        HStack(spacing: 4) {
-                            ProgressView().controlSize(.mini)
-                            Text("测速中")
-                                .font(VergeTypography.small)
-                                .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+
+                if isTesting {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else if let delay = node.delay {
+                    Text("\(delay)ms")
+                        .font(VergeTypography.smallMedium.monospacedDigit())
+                        .foregroundStyle(VergeColor.latency(delay))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(VergeColor.latency(delay).opacity(0.12)))
+                } else if !node.isAlive {
+                    Text("离线")
+                        .font(VergeTypography.smallMedium)
+                        .foregroundStyle(VergeColor.danger.opacity(0.8))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(VergeColor.danger.opacity(0.08)))
                         }
-                    } else if let delay = node.delay {
-                        Text("\(delay) ms")
-                            .font(VergeTypography.mono)
-                            .foregroundStyle(VergeColor.latency(delay))
-                    } else {
-                        Button("测速", action: onTest)
-                            .font(VergeTypography.smallMedium)
-                            .foregroundStyle(VergeColor.accent)
-                            .buttonStyle(.plain)
-                    }
-                    Spacer()
-                    if !node.isAlive {
-                        Text("离线")
-                            .font(VergeTypography.small)
-                            .foregroundStyle(VergeColor.danger.opacity(0.8))
-                    }
-                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(node.isSelected ? VergeColor.accentSoft : (hovered ? VergeColor.surfaceElevated : VergeColor.cardFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(
-                                node.isSelected ? VergeColor.accent : VergeColor.border,
-                                lineWidth: node.isSelected ? 1.5 : 0.5
-                            )
-                    }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        node.isSelected ? VergeColor.accent : VergeColor.border,
+                        lineWidth: node.isSelected ? 1.5 : 0.5
+                    )
             }
         }
         .buttonStyle(.plain)
@@ -642,6 +564,8 @@ struct VergeFilterBar: View {
                         .strokeBorder(VergeColor.border, lineWidth: 0.5)
                 }
         }
+        .frame(maxWidth: VergeLayout.pageMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, VergeLayout.contentPadding)
         .padding(.bottom, 10)
     }
@@ -692,23 +616,23 @@ struct VergeSettingsSection<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: VergeLayout.settingsRowSpacing) {
             HStack(spacing: 8) {
                 Image(systemName: symbol)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(VergeColor.accent)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(VergeColor.accentSoft))
+                    .frame(width: 18, height: 18)
                 Text(title)
                     .font(VergeTypography.sectionTitle)
             }
-            VStack(alignment: .leading, spacing: 12) {
-                content
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(vergeCardBackground)
+            .padding(.bottom, 8)
+
+            content
         }
+        .padding(VergeLayout.settingsCardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(vergeCardBackground)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -717,11 +641,328 @@ struct VergeSettingsRow<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack {
+        HStack(alignment: .center, spacing: 0) {
             Text(title)
                 .font(VergeTypography.body)
-            Spacer()
+                .foregroundStyle(.primary)
+                .frame(width: VergeLayout.settingsLabelWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 12)
             trailing
+        }
+        .frame(minHeight: VergeLayout.settingsRowMinHeight)
+    }
+}
+
+/// 带齿轮槽位的开关行：无齿轮时也保留占位，保证所有 Toggle 右缘对齐。
+struct VergeSettingsToggleRow: View {
+    let title: String
+    @Binding var isOn: Bool
+    var configEnabled: Bool = true
+    var configAction: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Text(title)
+                .font(VergeTypography.body)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: VergeLayout.settingsLabelWidth, alignment: .leading)
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 6) {
+                if let configAction {
+                    Button(action: configAction) {
+                        Image(systemName: "gearshape")
+                            .font(.body)
+                            .foregroundStyle(configEnabled ? .secondary : .tertiary)
+                            .frame(width: VergeLayout.settingsGearSlotWidth, height: VergeLayout.settingsRowMinHeight)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!configEnabled)
+                } else {
+                    Color.clear
+                        .frame(width: VergeLayout.settingsGearSlotWidth, height: 1)
+                }
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+        }
+        .frame(minHeight: VergeLayout.settingsRowMinHeight)
+    }
+}
+
+/// 较宽控件行：标签固定宽度，控件占满剩余空间。
+struct VergeSettingsWideRow<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Text(title)
+                .font(VergeTypography.body)
+                .frame(width: VergeLayout.settingsLabelWidth, alignment: .leading)
+            Spacer(minLength: 12)
+            content
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(minHeight: VergeLayout.settingsRowMinHeight)
+    }
+}
+
+struct VergeSettingsActionRow<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Color.clear
+                .frame(width: VergeLayout.settingsLabelWidth, height: 1)
+            Spacer(minLength: 12)
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: VergeLayout.settingsRowMinHeight)
+        .padding(.top, 6)
+    }
+}
+
+struct VergeSettingsNote: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Color.clear
+                .frame(width: VergeLayout.settingsLabelWidth, height: 1)
+            Spacer(minLength: 12)
+            Text(text)
+                .font(VergeTypography.small)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// 自动换行的横向布局：子项超出可用宽度时换到下一行，避免按钮被压缩截断。
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [[CGSize]] = [[]]
+        var currentWidth: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            let needed = (rows[rows.count - 1].isEmpty ? 0 : spacing) + size.width
+            if currentWidth + needed > maxWidth, !rows[rows.count - 1].isEmpty {
+                rows.append([size])
+                currentWidth = size.width
+            } else {
+                rows[rows.count - 1].append(size)
+                currentWidth += needed
+            }
+        }
+        let height = rows.reduce(CGFloat(0)) { acc, row in
+            acc + (row.map(\.height).max() ?? 0)
+        } + CGFloat(max(0, rows.count - 1)) * lineSpacing
+        let widest = rows.map { row in
+            row.map(\.width).reduce(0, +) + CGFloat(max(0, row.count - 1)) * spacing
+        }.max() ?? 0
+        return CGSize(width: min(widest, maxWidth), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        let maxWidth = bounds.width
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        var isFirstInRow = true
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            let needed = (isFirstInRow ? 0 : spacing) + size.width
+            if x + needed - bounds.minX > maxWidth, !isFirstInRow {
+                x = bounds.minX
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+                isFirstInRow = true
+            }
+            let placeX = isFirstInRow ? x : x + spacing
+            view.place(at: CGPoint(x: placeX, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x = placeX + size.width
+            rowHeight = max(rowHeight, size.height)
+            isFirstInRow = false
+        }
+    }
+}
+
+struct VergeSettingsActionBar: View {
+    let actions: [Action]
+
+    struct Action: Identifiable {
+        let id = UUID()
+        let title: String
+        var prominent = false
+        var disabled = false
+        var loading = false
+        let handler: () -> Void
+    }
+
+    var body: some View {
+        FlowLayout(spacing: 8, lineSpacing: 8) {
+            ForEach(actions) { action in
+                Group {
+                    if action.prominent {
+                        Button(action: action.handler) {
+                            actionLabel(action)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button(action: action.handler) {
+                            actionLabel(action)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .tint(action.prominent ? VergeColor.accent : nil)
+                .controlSize(.small)
+                .fixedSize()
+                .disabled(action.disabled || action.loading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func actionLabel(_ action: Action) -> some View {
+        if action.loading {
+            ProgressView().controlSize(.small)
+        } else {
+            Text(action.title)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+}
+
+struct VergeSettingsCompactField: View {
+    @Binding var text: String
+    var placeholder: String = ""
+    var width: CGFloat = 108
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(VergeTypography.mono)
+            .multilineTextAlignment(.trailing)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(width: width)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(VergeColor.surface)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(VergeColor.border, lineWidth: 0.5)
+                    }
+            }
+    }
+}
+
+struct VergeSettingsPathRow: View {
+    let path: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Color.clear
+                .frame(width: VergeLayout.settingsLabelWidth, height: 1)
+            Spacer(minLength: 12)
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(path)
+                    .font(VergeTypography.small.monospaced())
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(path, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("复制路径")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(VergeColor.surface)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(VergeColor.border, lineWidth: 0.5)
+                    }
+            }
+        }
+        .padding(.top, 4)
+    }
+}
+
+struct VergePathChip: View {
+    let path: String
+
+    var body: some View {
+        VergeSettingsPathRow(path: path)
+    }
+}
+
+struct VergeLogRow: View {
+    let entry: LogEntry
+
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM-dd HH:mm:ss"
+        return f
+    }()
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(Self.timestampFormatter.string(from: entry.timestamp))
+                .font(VergeTypography.small.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(width: 86, alignment: .leading)
+            Text(entry.level.label.uppercased())
+                .font(VergeTypography.smallMedium)
+                .foregroundStyle(levelColor)
+                .frame(width: 54, alignment: .leading)
+            Text(entry.message)
+                .font(VergeTypography.mono)
+                .textSelection(.enabled)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+    }
+
+    private var levelColor: Color {
+        switch entry.level {
+        case .info: VergeColor.accent
+        case .warning: VergeColor.upload
+        case .error: VergeColor.danger
+        case .debug: Color.purple
         }
     }
 }
@@ -733,20 +974,24 @@ struct VergeSettingsChevronRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(alignment: .center, spacing: 0) {
                 HStack(spacing: 4) {
-                    Text(title).font(VergeTypography.body)
+                    Text(title)
+                        .font(VergeTypography.body)
                     if info {
                         Image(systemName: "info.circle")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Spacer()
+                .frame(width: VergeLayout.settingsLabelWidth, alignment: .leading)
+                Spacer(minLength: 12)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
+            .frame(maxWidth: .infinity, minHeight: VergeLayout.settingsRowMinHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -813,7 +1058,7 @@ struct VergeStartupBanner: View {
                     .font(VergeTypography.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Button("处理") { onAction() }
+                Button(actionLabel) { onAction() }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
                     .tint(VergeColor.accent)
@@ -841,132 +1086,14 @@ struct VergeStartupBanner: View {
         case .geoData: "globe.americas"
         case .coreUpdate: "arrow.down.circle"
         case .coreMissing: "cpu"
-        }
-    }
-}
-
-struct VergeIPDualCard: View {
-    let direct: IPInfo?
-    let proxy: IPInfo?
-    let isLoading: Bool
-    let isRunning: Bool
-    let onRefresh: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("IP 信息", systemImage: "network")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(isLoading)
-            }
-
-            if isLoading {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text("检测中…").font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-            } else if isRunning {
-                HStack(alignment: .top, spacing: 12) {
-                    ipPanel(title: "本机 IP", info: direct, accent: .secondary)
-                    ipPanel(title: "出口 IP", info: proxy, accent: VergeColor.accent)
-                }
-            } else {
-                ipPanel(title: "本机 IP", info: direct ?? proxy, accent: VergeColor.accent)
-            }
-        }
-        .padding(20)
-        .background(vergeCardBackground)
-    }
-
-    private func ipPanel(title: String, info: IPInfo?, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(accent)
-
-            if let info {
-                HStack(spacing: 8) {
-                    if let code = info.countryCode, let flag = NodeNameParser.countryFlag(from: code) {
-                        Text(flag).font(.title2)
-                    }
-                    Text(info.ip)
-                        .font(.system(.title3, design: .monospaced, weight: .bold))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    Button {
-                        copyText(info.ip)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .help("复制 IP")
-                }
-
-                if !info.locationLabel.isEmpty {
-                    Text(info.locationLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                HStack(spacing: 8) {
-                    Text("\(info.latencyMs) ms")
-                        .font(.caption.monospacedDigit().weight(.medium))
-                        .foregroundStyle(VergeColor.latency(info.latencyMs))
-                    if let isp = info.isp, !isp.isEmpty {
-                        Text(isp)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                }
-            } else {
-                Text("—")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(VergeColor.surfaceElevated)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(VergeColor.border, lineWidth: 1)
-                }
+        case .helperApproval: "lock.shield"
         }
     }
 
-    private func copyText(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-}
-
-struct VergeIPCard: View {
-    let info: IPInfo?
-    let isLoading: Bool
-    let isRunning: Bool
-    let onRefresh: () -> Void
-
-    var body: some View {
-        VergeIPDualCard(
-            direct: isRunning ? nil : info,
-            proxy: isRunning ? info : nil,
-            isLoading: isLoading,
-            isRunning: isRunning,
-            onRefresh: onRefresh
-        )
+    private var actionLabel: String {
+        switch banner.kind {
+        case .helperApproval: "打开设置"
+        default: "处理"
+        }
     }
 }

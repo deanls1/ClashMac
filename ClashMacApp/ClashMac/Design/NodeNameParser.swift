@@ -13,10 +13,7 @@ enum NodeNameParser {
     ]
 
     static func countryFlag(from name: String) -> String? {
-        if let leading = name.first, leading.unicodeScalars.first?.properties.isEmoji == true {
-            let prefix = name.prefix(while: { $0.unicodeScalars.first?.properties.isEmoji == true })
-            if !prefix.isEmpty { return String(prefix) }
-        }
+        if hasLeadingEmoji(in: name) { return nil }
 
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count == 2, trimmed.allSatisfy(\.isLetter) {
@@ -31,6 +28,11 @@ enum NodeNameParser {
             if name.contains(key) { return flagEmoji(for: code) }
         }
         return nil
+    }
+
+    static func hasLeadingEmoji(in name: String) -> Bool {
+        guard let first = name.first else { return false }
+        return first.unicodeScalars.first?.properties.isEmoji == true
     }
 
     static func protocolLabel(_ type: String?) -> String {

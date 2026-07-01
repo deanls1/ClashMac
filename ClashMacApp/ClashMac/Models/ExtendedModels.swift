@@ -69,6 +69,20 @@ enum LogLevel: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum LogsSource: String, CaseIterable, Identifiable, Sendable {
+    case core
+    case app
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .core: "内核"
+        case .app: "应用"
+        }
+    }
+}
+
 // MARK: - Connections
 
 struct ConnectionItem: Identifiable, Equatable, Hashable, Sendable {
@@ -151,6 +165,19 @@ struct LogEntry: Identifiable, Equatable, Sendable {
 }
 
 // MARK: - Unlock
+
+struct ProxyProvider: Identifiable, Equatable, Sendable {
+    let name: String
+    let vehicleType: String
+    let updatedAt: Date?
+
+    var id: String { name }
+
+    var updatedAtLabel: String {
+        guard let updatedAt else { return "—" }
+        return updatedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+}
 
 struct UnlockTarget: Identifiable, Equatable, Codable, Sendable {
     let id: String
@@ -241,6 +268,21 @@ enum UnlockStatus: Equatable, Sendable, Codable {
         case .failed(let d): try c.encode("failed", forKey: .kind); try c.encode(d, forKey: .detail)
         }
     }
+}
+
+// MARK: - Startup
+
+struct StartupBanner: Equatable, Sendable {
+    enum Kind: String, Hashable, Sendable {
+        case geoData
+        case coreUpdate
+        case coreMissing
+        case helperApproval
+    }
+
+    let kind: Kind
+    let title: String
+    let message: String
 }
 
 // MARK: - Formatters

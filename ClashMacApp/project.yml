@@ -31,16 +31,20 @@ targets:
       - path: ClashMac
         excludes:
           - "Resources/**"
+      - path: ClashMac/Resources/Assets.xcassets
       - path: Shared
     resources:
-      - path: ClashMac/Resources
+      - path: ClashMac/Resources/Core
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.clashmac.app
       PRODUCT_NAME: "Clash Mac"
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      INFOPLIST_KEY_CFBundleIconName: AppIcon
       INFOPLIST_KEY_LSUIElement: YES
       INFOPLIST_KEY_NSHumanReadableCopyright: "Clash Mac"
       GENERATE_INFOPLIST_FILE: YES
       ENABLE_HARDENED_RUNTIME: YES
+      ENABLE_USER_SCRIPT_SANDBOXING: NO
       OTHER_LDFLAGS: ["-lbsm", "-lz"]
     entitlements:
       path: Config/ClashMac.entitlements
@@ -51,23 +55,18 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Library/LaunchServices
-    copyFiles:
-      - name: Copy Helper Plist
-        destination: wrapper
-        subpath: Contents/Library/LaunchDaemons
-        files:
-          - Config/com.clashmac.helper.plist
     postBuildScripts:
       - name: Embed Helper LaunchDaemon Plist
         basedOnDependencyAnalysis: false
         inputFiles:
           - $(SRCROOT)/Config/com.clashmac.helper.plist
         outputFiles:
-          - $(TARGET_BUILD_DIR)/$(FULL_PRODUCT_NAME)/Contents/Library/LaunchDaemons/com.clashmac.helper.plist
+          - $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/com.clashmac.helper.plist
         script: |
-          PLIST_DST="${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}/Contents/Library/LaunchDaemons"
+          set -e
+          PLIST_DST="${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchDaemons"
           mkdir -p "${PLIST_DST}"
-          cp "${SRCROOT}/Config/com.clashmac.helper.plist" "${PLIST_DST}/"
+          cp -f "${SRCROOT}/Config/com.clashmac.helper.plist" "${PLIST_DST}/"
 
   ClashMacHelper:
     type: tool
@@ -79,6 +78,9 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.clashmac.helper
       PRODUCT_NAME: ClashMacHelper
       GENERATE_INFOPLIST_FILE: YES
+      CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+      INFOPLIST_KEY_CFBundleIdentifier: com.clashmac.helper
+      INFOPLIST_KEY_CFBundleName: ClashMacHelper
       SKIP_INSTALL: NO
       OTHER_LDFLAGS: ["-lbsm"]
     entitlements:

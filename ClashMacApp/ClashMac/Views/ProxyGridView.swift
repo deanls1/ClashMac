@@ -18,7 +18,12 @@ struct ProxyGridView: View {
                     $0.name.localizedCaseInsensitiveContains(searchText)
                 }
                 guard !nodes.isEmpty else { return nil }
-                return ProxyGroup(name: group.name, nodes: nodes, selectedNode: group.selectedNode)
+                return ProxyGroup(
+                    name: group.name,
+                    nodes: nodes,
+                    selectedNode: group.selectedNode,
+                    groupType: group.groupType
+                )
             }
         }
         return sortedGroups(base)
@@ -50,7 +55,7 @@ struct ProxyGridView: View {
                 }
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 12) {
                         header
                         toolbar
                         ForEach(filteredGroups) { group in
@@ -64,11 +69,18 @@ struct ProxyGridView: View {
                         }
                     }
                     .padding(VergeLayout.contentPadding)
+                    .frame(maxWidth: VergeLayout.pageMaxWidth)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
         .background(VergeColor.canvas)
-        .onAppear { Task { await store.refreshAll() } }
+        .sheet(isPresented: $store.isProxyProvidersPresented) {
+            ProxyProvidersSheet(store: store)
+        }
+        .onAppear {
+            Task { await store.refreshGroupsIfNeeded() }
+        }
     }
 
     private var header: some View {
@@ -78,8 +90,8 @@ struct ProxyGridView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 10) {
-            VergeSearchField(placeholder: "搜索节点", text: $searchText, maxWidth: .infinity)
+        HStack(spacing: 8) {
+            VergeSearchField(placeholder: "搜索节点", text: $searchText, maxWidth: 260)
 
             Toggle(isOn: $hideOffline) {
                 Text("隐藏离线")
@@ -108,6 +120,17 @@ struct ProxyGridView: View {
             .fixedSize()
 
             Button {
+                store.isProxyProvidersPresented = true
+                Task { await store.refreshProxyProviders() }
+            } label: {
+                Label("Provider", systemImage: "externaldrive")
+                    .font(VergeTypography.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!store.coreState.isRunning)
+
+            Button {
                 withAnimation { expandAll.toggle() }
             } label: {
                 Label(expandAll ? "全部折叠" : "全部展开", systemImage: expandAll ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
@@ -130,21 +153,26 @@ struct ProxyGridView: View {
             .controlSize(.small)
             .disabled(!store.coreState.isRunning || store.isTestingAllGroups)
         }
-        .padding(12)
-        .background(vergeCardBackground)
+        .padding(.horizontal, 2)
+        .padding(.bottom, 2)
     }
 
     private var emptyState: some View {
         ContentUnavailableView {
             Label("暂无代理组", systemImage: "server.rack")
         } description: {
-            Text(store.coreState.isRunning ? "当前配置中没有策略组" : "导入订阅并启动代理后，策略组与节点将显示在这里")
+            if let err = store.runtimeDataError {
+                Text(err)
+            } else {
+                Text(store.coreState.isRunning ? "当前配置中没有策略组" : "导入订阅并启动代理后，策略组与节点将显示在这里")
+            }
         } actions: {
             if !store.coreState.isRunning {
                 Button("启动代理") { Task { await store.start() } }
                     .buttonStyle(.borderedProminent)
                     .tint(VergeColor.accent)
             } else {
+                Button("重新加载") { Task { await store.refreshRuntimeDataWithRetry() } }
                 Button("前往订阅") { store.selectedSection = .subscription }
             }
         }
@@ -188,44 +216,40 @@ private struct VergeProxyGroupBlock: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
                 Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    withAnimation(.easeInOut(duration: 0.14)) {
                         isExpanded.toggle()
                     }
                 } label: {
-                    HStack(spacing: 10) {
-                        groupIcon
+                    HStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 8) {
                                 Text(group.name)
                                     .font(VergeTypography.sectionTitle)
-                                Text("Selector")
+                                    .lineLimit(1)
+                                Text(group.groupTypeLabel)
                                     .font(VergeTypography.smallMedium)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
                                     .background(Capsule().fill(VergeColor.surface))
                                     .foregroundStyle(.secondary)
                             }
                             if let selected = selectedNode {
-                                HStack(spacing: 4) {
-                                    if let flag = NodeNameParser.countryFlag(from: selected.name) {
-                                        Text(flag)
-                                    }
-                                    Text(selected.name)
-                                        .font(VergeTypography.caption)
-                                        .foregroundStyle(VergeColor.accent)
-                                        .lineLimit(1)
-                                }
+                                Text(selected.name)
+                                    .font(VergeTypography.caption)
+                                    .foregroundStyle(VergeColor.accent)
+                                    .lineLimit(1)
                             }
                         }
                         Spacer()
                         Text("\(group.nodes.count)")
                             .font(VergeTypography.smallMedium.monospacedDigit())
                             .foregroundStyle(.secondary)
-                            .frame(minWidth: 24, minHeight: 24)
-                            .background(Circle().fill(VergeColor.surface))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(VergeColor.surface))
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
@@ -233,36 +257,23 @@ private struct VergeProxyGroupBlock: View {
                 }
                 .buttonStyle(.plain)
 
-                Button {
+                groupActionButton(symbol: "speedometer", help: "测速整组") {
                     Task { await store.testDelays(for: group) }
-                } label: {
-                    Image(systemName: "speedometer")
-                        .font(.body)
-                        .foregroundStyle(VergeColor.accent)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(VergeColor.accentSoft))
                 }
-                .buttonStyle(.plain)
-                .help("测速整组")
 
-                Button {
+                groupActionButton(symbol: "bolt.fill", help: "自动选择最快节点") {
                     Task { await store.selectFastest(in: group) }
-                } label: {
-                    Image(systemName: "bolt.fill")
-                        .font(.body)
-                        .foregroundStyle(VergeColor.accent)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(VergeColor.accentSoft))
                 }
-                .buttonStyle(.plain)
-                .help("自动选择最快节点")
                 .disabled(!store.coreState.isRunning)
             }
 
             if isExpanded {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 156, maximum: 220), spacing: 10)],
-                    spacing: 10
+                    columns: [
+                        GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 8),
+                    ],
+                    alignment: .leading,
+                    spacing: 8
                 ) {
                     ForEach(visibleNodes) { node in
                         VergeProxyNodeCard(
@@ -276,22 +287,31 @@ private struct VergeProxyGroupBlock: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(16)
-        .background(vergeCardBackground)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(VergeColor.cardFill)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(VergeColor.border, lineWidth: 0.5)
+                }
+        }
         .onChange(of: expandAll) { _, value in
             withAnimation { isExpanded = value }
         }
     }
 
-    private var groupIcon: some View {
-        ZStack {
-            Circle()
-                .fill(VergeColor.accentSoft)
-                .frame(width: 32, height: 32)
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(VergeColor.accent)
+    private func groupActionButton(symbol: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(VergeColor.surface))
         }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }
 

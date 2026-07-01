@@ -2,31 +2,15 @@ import Foundation
 
 enum ProfileRulesEditor {
     static func loadRulesYAML(from profile: Profile) throws -> String {
-        let profileText = try String(contentsOf: profile.fileURL, encoding: .utf8)
-        return extractRulesSection(from: profileText) ?? "rules:\n  - MATCH,Proxy\n"
+        try ProfileYAMLSectionEditor.load(section: .rules, from: profile)
     }
 
     static func saveRulesYAML(_ rulesYAML: String, to profile: Profile) throws {
-        var profileText = try String(contentsOf: profile.fileURL, encoding: .utf8)
-        profileText = replaceRulesSection(in: profileText, with: rulesYAML)
-        try profileText.write(to: profile.fileURL, atomically: true, encoding: .utf8)
+        try ProfileYAMLSectionEditor.save(section: .rules, yaml: rulesYAML, to: profile)
     }
 
     static func extractRulesSection(from profile: String) -> String? {
-        let lines = profile.components(separatedBy: .newlines)
-        guard let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "rules:" }) else {
-            return nil
-        }
-        var end = start + 1
-        while end < lines.count {
-            let line = lines[end]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty && !line.hasPrefix(" ") && !line.hasPrefix("-") && trimmed.contains(":") {
-                break
-            }
-            end += 1
-        }
-        return lines[start..<end].joined(separator: "\n")
+        ProfileYAMLSectionEditor.extractSection(key: "rules", from: profile)
     }
 
     private static func replaceRulesSection(in profile: String, with rulesYAML: String) -> String {

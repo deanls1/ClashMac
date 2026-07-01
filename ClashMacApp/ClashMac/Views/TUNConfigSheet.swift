@@ -4,194 +4,153 @@ struct TUNConfigSheet: View {
     @Bindable var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var config = TUNConfig.vergeDefault
-    @State private var newExcludeCIDR = ""
+
+    private let stackOptions: [(value: String, label: String)] = [
+        ("mixed", "Mixed"),
+        ("gvisor", "GVisor"),
+        ("system", "System"),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("虚拟网卡模式")
-                    .font(.title2.weight(.bold))
-                Spacer()
-                Button("重置为默认值") {
-                    config = .vergeDefault
-                }
-                .foregroundStyle(VergeColor.upload)
-            }
-            .padding()
+            VergeConfigSheetHeader(
+                title: "TUN 模式",
+                symbol: "point.3.connected.trianglepath.dotted",
+                onReset: { config = .vergeDefault }
+            )
+
+            VergeConfigWarningBanner(
+                message: "macOS 推荐使用 Mixed 堆栈并开启严格路由，可避免 DNS 环路。若不清楚这些选项，请保持默认。"
+            )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    stackPicker
-                    tunField("虚拟网卡名称", text: $config.device)
-                    tunToggle("自动设置全局路由", $config.autoRoute)
-                    tunToggle("严格路由", $config.strictRoute)
-                    tunToggle("自动选择流量出口接口", $config.autoDetectInterface)
-                    tunField("DNS 劫持", text: bindingList(\.dnsHijack))
-                    mtuField
+                    generalSection
+                    deviceSection
+                    routingSection
                     excludeSection
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
 
-            HStack {
-                Spacer()
-                Button("取消") { dismiss() }
-                Button("保存") {
+            VergeConfigSheetFooter(
+                onCancel: { dismiss() },
+                onSave: {
                     store.saveTUNConfig(config)
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(VergeColor.accent)
-            }
-            .padding()
+            )
         }
-        .frame(width: 520, height: 560)
+        .frame(width: 560, height: 640)
+        .background(VergeColor.canvas)
         .onAppear { config = store.tunConfig }
     }
 
-    private var stackPicker: some View {
+    // MARK: - Sections
+
+    private var generalSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("TUN 模式堆栈").font(.subheadline.weight(.semibold))
-            HStack(spacing: 0) {
-                ForEach(["system", "gvisor", "mixed"], id: \.self) { value in
-                    let label = value == "system" ? "System" : value == "gvisor" ? "GVisor" : "Mixed"
-                    Button {
-                        config.stack = value
-                    } label: {
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(config.stack == value ? VergeColor.accent : Color.clear)
-                            .foregroundStyle(config.stack == value ? .white : VergeColor.accent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(VergeColor.accent, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            VergeConfigSectionTitle(title: "常规")
+            VergeConfigSegmentRow(
+                title: "堆栈模式",
+                subtitle: "Mixed 在 macOS 上更稳定",
+                selection: $config.stack,
+                options: stackOptions
+            )
         }
+        .padding(14)
+        .background(sectionBackground)
     }
 
-    private var mtuField: some View {
-        HStack {
-            Text("最大传输单元").frame(width: 140, alignment: .leading)
-            Stepper(value: $config.mtu, in: 576...9000, step: 1) {
-                Text("\(config.mtu)")
-                    .monospacedDigit()
-                    .frame(width: 56, alignment: .trailing)
+    private var deviceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "设备")
+            VergeConfigFieldRow(
+                title: "网卡名称",
+                subtitle: "macOS 默认 \(ClashMacPorts.defaultTUNDevice)",
+                text: $config.device,
+                placeholder: ClashMacPorts.defaultTUNDevice
+            )
+            VergeConfigListDivider()
+            VergeConfigStepperRow(
+                title: "MTU",
+                subtitle: "最大传输单元",
+                value: $config.mtu,
+                range: 576...9000,
+                suffix: " B"
+            )
+            VergeConfigListDivider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("DNS 劫持")
+                    .font(VergeTypography.body)
+                Text("TUN 模式下拦截的 DNS 请求地址")
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(.secondary)
+                VergeConfigTagListEditor(
+                    items: $config.dnsHijack,
+                    placeholder: "any:53",
+                    hint: "常见值：any:53、tcp://any:53"
+                )
             }
         }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    private var routingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "路由")
+            VergeConfigToggleRow(
+                title: "自动设置全局路由",
+                subtitle: "将系统默认路由指向 TUN 设备",
+                isOn: $config.autoRoute
+            )
+            VergeConfigListDivider()
+            VergeConfigToggleRow(
+                title: "严格路由",
+                subtitle: "macOS 建议开启，防止 DNS 泄漏与环路",
+                isOn: $config.strictRoute
+            )
+            VergeConfigListDivider()
+            VergeConfigToggleRow(
+                title: "自动检测出口网卡",
+                subtitle: "自动选择物理网卡作为上游",
+                isOn: $config.autoDetectInterface
+            )
+        }
+        .padding(14)
+        .background(sectionBackground)
     }
 
     private var excludeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("排除自定义网段").font(.subheadline.weight(.semibold))
-                Spacer()
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            FlowLayout(spacing: 6) {
-                ForEach(config.routeExcludeAddress, id: \.self) { cidr in
-                    HStack(spacing: 4) {
-                        Text(cidr).font(.caption)
-                        Button {
-                            config.routeExcludeAddress.removeAll { $0 == cidr }
-                        } label: {
-                            Image(systemName: "xmark").font(.caption2)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(VergeColor.surface))
-                }
-            }
-            HStack {
-                TextField("192.168.0.0/16", text: $newExcludeCIDR)
-                    .textFieldStyle(.roundedBorder)
-                Button("新建") {
-                    let trimmed = newExcludeCIDR.trimmingCharacters(in: .whitespaces)
-                    guard !trimmed.isEmpty, !config.routeExcludeAddress.contains(trimmed) else { return }
-                    config.routeExcludeAddress.append(trimmed)
-                    newExcludeCIDR = ""
-                }
-                .disabled(newExcludeCIDR.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            Text("仅支持 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8")
-                .font(.caption2)
+            VergeConfigSectionTitle(title: "排除网段")
+            Text("以下 CIDR 不经过 TUN，常用于局域网地址")
+                .font(VergeTypography.caption)
                 .foregroundStyle(.secondary)
+            VergeConfigTagListEditor(
+                items: $config.routeExcludeAddress,
+                placeholder: "192.168.0.0/16",
+                hint: "支持 IPv4 / IPv6 CIDR"
+            )
         }
+        .padding(14)
+        .background(sectionBackground)
     }
 
-    private func bindingList(_ keyPath: WritableKeyPath<TUNConfig, [String]>) -> Binding<String> {
-        Binding(
-            get: { config[keyPath: keyPath].joined(separator: ", ") },
-            set: { config[keyPath: keyPath] = TUNConfig.parseList($0) }
-        )
-    }
-
-    private func tunField(_ title: String, text: Binding<String>) -> some View {
-        HStack {
-            Text(title).frame(width: 140, alignment: .leading)
-            TextField(title, text: text).textFieldStyle(.roundedBorder)
-        }
-    }
-
-    private func tunToggle(_ title: String, _ binding: Binding<Bool>) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Toggle("", isOn: binding).labelsHidden()
-        }
+    private var sectionBackground: some View {
+        RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+            .fill(VergeColor.cardFill)
+            .overlay {
+                RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+                    .strokeBorder(VergeColor.border, lineWidth: 0.5)
+            }
     }
 }
 
 extension TUNConfig {
     static func parseList(_ text: String) -> [String] {
         text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
-}
-
-/// 简单流式标签布局
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = arrange(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(proposal: proposal, subviews: subviews)
-        for (index, frame) in result.frames.enumerated() {
-            subviews[index].place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                proposal: ProposedViewSize(frame.size)
-            )
-        }
-    }
-
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var frames: [CGRect] = []
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth, x > 0 {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + spacing
-        }
-        return (CGSize(width: maxWidth, height: y + rowHeight), frames)
     }
 }

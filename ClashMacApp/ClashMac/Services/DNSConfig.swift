@@ -38,6 +38,12 @@ struct DNSConfig: Codable, Equatable, Sendable {
 
     static let vergeDefault = DNSConfig()
 
+    /// YAML 单引号转义；含 `*`、`+` 等字符的值必须加引号，否则 mihomo 解析失败。
+    private static func yamlQuoted(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "'", with: "''")
+        return "'\(escaped)'"
+    }
+
     func yamlBlock(includePrivilegedListen: Bool = true) -> String {
         var lines: [String] = ["dns:", "  enable: \(enable)"]
         if includePrivilegedListen, !listen.isEmpty {
@@ -52,20 +58,20 @@ struct DNSConfig: Codable, Equatable, Sendable {
         lines.append("  use-system-hosts: \(useSystemHosts)")
         lines.append("  ipv6: \(ipv6)")
         lines.append("  fake-ip-filter:")
-        fakeIPFilter.forEach { lines.append("    - \($0)") }
+        fakeIPFilter.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         lines.append("  default-nameserver:")
-        defaultNameserver.forEach { lines.append("    - \($0)") }
+        defaultNameserver.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         lines.append("  nameserver:")
-        nameserver.forEach { lines.append("    - \($0)") }
+        nameserver.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         if !fallback.isEmpty {
             lines.append("  fallback:")
-            fallback.forEach { lines.append("    - \($0)") }
+            fallback.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         }
         lines.append("  proxy-server-nameserver:")
-        proxyServerNameserver.forEach { lines.append("    - \($0)") }
+        proxyServerNameserver.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         if !directNameserver.isEmpty {
             lines.append("  direct-nameserver:")
-            directNameserver.forEach { lines.append("    - \($0)") }
+            directNameserver.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
         }
         lines.append("  direct-nameserver-follow-policy: \(directNameserverFollowPolicy)")
         let policy = DNSConfig.parseNameserverPolicy(nameserverPolicyText)
@@ -73,10 +79,10 @@ struct DNSConfig: Codable, Equatable, Sendable {
             lines.append("  nameserver-policy:")
             for (key, servers) in policy.sorted(by: { $0.key < $1.key }) {
                 if servers.count == 1 {
-                    lines.append("    '\(key)': \(servers[0])")
+                    lines.append("    \(Self.yamlQuoted(key)): \(Self.yamlQuoted(servers[0]))")
                 } else {
-                    lines.append("    '\(key)':")
-                    servers.forEach { lines.append("      - \($0)") }
+                    lines.append("    \(Self.yamlQuoted(key)):")
+                    servers.forEach { lines.append("      - \(Self.yamlQuoted($0))") }
                 }
             }
         }
@@ -84,9 +90,9 @@ struct DNSConfig: Codable, Equatable, Sendable {
         lines.append("    geoip: \(fallbackGeoip)")
         lines.append("    geoip-code: \(fallbackGeoipCode)")
         lines.append("    ipcidr:")
-        fallbackIpcidr.forEach { lines.append("      - \($0)") }
+        fallbackIpcidr.forEach { lines.append("      - \(Self.yamlQuoted($0))") }
         lines.append("    domain:")
-        fallbackDomain.forEach { lines.append("      - \($0)") }
+        fallbackDomain.forEach { lines.append("      - \(Self.yamlQuoted($0))") }
         return lines.joined(separator: "\n")
     }
 
@@ -96,10 +102,10 @@ struct DNSConfig: Codable, Equatable, Sendable {
         var lines = ["hosts:"]
         for (domain, value) in hosts.sorted(by: { $0.key < $1.key }) {
             if value.count == 1 {
-                lines.append("  '\(domain)': \(value[0])")
+                lines.append("  \(Self.yamlQuoted(domain)): \(Self.yamlQuoted(value[0]))")
             } else {
-                lines.append("  '\(domain)':")
-                value.forEach { lines.append("    - \($0)") }
+                lines.append("  \(Self.yamlQuoted(domain)):")
+                value.forEach { lines.append("    - \(Self.yamlQuoted($0))") }
             }
         }
         return lines.joined(separator: "\n")

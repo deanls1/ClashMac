@@ -21,7 +21,8 @@ struct VergeChainLabel: View {
                         .foregroundStyle(.tertiary)
                 }
                 HStack(spacing: 3) {
-                    if let flag = NodeNameParser.countryFlag(from: segment) {
+                    if !NodeNameParser.hasLeadingEmoji(in: segment),
+                       let flag = NodeNameParser.countryFlag(from: segment) {
                         Text(flag).font(.caption)
                     } else if segment.uppercased() == "DIRECT" {
                         Image(systemName: "globe")

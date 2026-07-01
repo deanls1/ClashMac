@@ -45,6 +45,22 @@ enum CoreState: Equatable, Sendable {
         case .error(let message): message
         }
     }
+
+    /// 首页/托盘等 UI 用的短标题（error 时不重复展示长错误正文）。
+    var statusTitle: String {
+        switch self {
+        case .stopped: "代理已停止"
+        case .starting: "启动中…"
+        case .running: "代理运行中"
+        case .stopping: "停止中…"
+        case .error: "启动失败"
+        }
+    }
+
+    var errorDetail: String? {
+        if case .error(let message) = self { return message }
+        return nil
+    }
 }
 
 struct ProxyNode: Identifiable, Equatable, Sendable {
@@ -74,15 +90,19 @@ struct ProxyNode: Identifiable, Equatable, Sendable {
 struct ProxyGroup: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
+    var groupType: String
     var nodes: [ProxyNode]
     var selectedNode: String?
 
-    init(name: String, nodes: [ProxyNode], selectedNode: String? = nil) {
+    init(name: String, nodes: [ProxyNode], selectedNode: String? = nil, groupType: String = "Selector") {
         self.id = name
         self.name = name
+        self.groupType = groupType
         self.nodes = nodes
         self.selectedNode = selectedNode
     }
+
+    var groupTypeLabel: String { groupType }
 }
 
 struct TrafficSnapshot: Equatable, Sendable {

@@ -1,36 +1,5 @@
 import Foundation
 
-enum MenuBarIconStyle: String, CaseIterable, Identifiable, Sendable {
-    case network
-    case shield
-    case bolt
-    case antenna
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .network: "网络"
-        case .shield: "盾牌"
-        case .bolt: "闪电"
-        case .antenna: "信号"
-        }
-    }
-
-    func symbol(running: Bool) -> String {
-        switch self {
-        case .network:
-            running ? "network.badge.shield.half.filled" : "network"
-        case .shield:
-            running ? "shield.lefthalf.filled.badge.checkmark" : "shield"
-        case .bolt:
-            running ? "bolt.fill" : "bolt"
-        case .antenna:
-            running ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right"
-        }
-    }
-}
-
 enum AppPreferences {
     nonisolated(unsafe) private static let defaults = UserDefaults.standard
 
@@ -41,19 +10,39 @@ enum AppPreferences {
         static let launchAtLogin = "launchAtLogin"
         static let hotkeysEnabled = "hotkeysEnabled"
         static let globalHotkey = "globalHotkey"
+        static let lightweightModeEnabled = "lightweightModeEnabled"
+        static let resumeLastProxyState = "resumeLastProxyState"
+        static let coreWasRunning = "coreWasRunning"
         static let mixedPort = "mixedPort"
         static let controllerPort = "controllerPort"
         static let enableExternalController = "enableExternalController"
         static let dnsServers = "dnsServers"
         static let ipv6Enabled = "ipv6Enabled"
         static let dnsOverwriteEnabled = "dnsOverwriteEnabled"
-        static let menuBarIconStyle = "menuBarIconStyle"
         static let customMenuBarIconPath = "customMenuBarIconPath"
         static let appearance = "appearance"
+        static let defaultPortsMigrated = "defaultPortsMigrated.v2"
+    }
+
+    /// 将旧版默认端口（7890/9090）迁移到与 Verge Rev 错开的端口。
+    static func migrateDefaultPortsIfNeeded() {
+        guard !defaults.bool(forKey: Key.defaultPortsMigrated) else { return }
+
+        let mixed = defaults.integer(forKey: Key.mixedPort)
+        if mixed == 0 || mixed == ClashMacPorts.legacyMixedPort {
+            defaults.set(ClashMacPorts.defaultMixedPort, forKey: Key.mixedPort)
+        }
+
+        let controller = defaults.integer(forKey: Key.controllerPort)
+        if controller == 0 || controller == ClashMacPorts.legacyControllerPort {
+            defaults.set(ClashMacPorts.defaultControllerPort, forKey: Key.controllerPort)
+        }
+
+        defaults.set(true, forKey: Key.defaultPortsMigrated)
     }
 
     static var tunEnabled: Bool {
-        get { defaults.object(forKey: Key.tunEnabled) as? Bool ?? true }
+        get { defaults.object(forKey: Key.tunEnabled) as? Bool ?? false }
         set { defaults.set(newValue, forKey: Key.tunEnabled) }
     }
 
@@ -77,10 +66,27 @@ enum AppPreferences {
         set { defaults.set(newValue, forKey: Key.globalHotkey) }
     }
 
+    static var lightweightModeEnabled: Bool {
+        get { defaults.object(forKey: Key.lightweightModeEnabled) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: Key.lightweightModeEnabled) }
+    }
+
+    /// 启动时是否恢复上次代理运行状态（默认开启）。
+    static var resumeLastProxyState: Bool {
+        get { defaults.object(forKey: Key.resumeLastProxyState) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.resumeLastProxyState) }
+    }
+
+    /// 上次会话中代理（内核）是否处于运行态，用于启动时自动恢复。
+    static var coreWasRunning: Bool {
+        get { defaults.object(forKey: Key.coreWasRunning) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: Key.coreWasRunning) }
+    }
+
     static var mixedPort: Int {
         get {
             let v = defaults.integer(forKey: Key.mixedPort)
-            return v > 0 ? v : 7890
+            return v > 0 ? v : ClashMacPorts.defaultMixedPort
         }
         set { defaults.set(newValue, forKey: Key.mixedPort) }
     }
@@ -88,7 +94,7 @@ enum AppPreferences {
     static var controllerPort: Int {
         get {
             let v = defaults.integer(forKey: Key.controllerPort)
-            return v > 0 ? v : 9090
+            return v > 0 ? v : ClashMacPorts.defaultControllerPort
         }
         set { defaults.set(newValue, forKey: Key.controllerPort) }
     }
@@ -115,13 +121,6 @@ enum AppPreferences {
         set { defaults.set(newValue, forKey: Key.dnsOverwriteEnabled) }
     }
 
-    static var menuBarIconStyle: MenuBarIconStyle {
-        get {
-            MenuBarIconStyle(rawValue: defaults.string(forKey: Key.menuBarIconStyle) ?? "") ?? .network
-        }
-        set { defaults.set(newValue.rawValue, forKey: Key.menuBarIconStyle) }
-    }
-
     static var customMenuBarIconPath: String? {
         get { defaults.string(forKey: Key.customMenuBarIconPath) }
         set {
@@ -145,8 +144,10 @@ enum AppPreferences {
         }
     }
 
-    static func makeRuntimeConfig(mode: RunMode) -> RuntimeConfig {
-        RuntimeConfig(
+    static func makeRuntimeConfig(mode: RunMode, tunEnabled overrideTun: Bool? = nil, logLevel: String = "info") -> RuntimeConfig {
+        var dnsConfig = DNSConfigStore.load()
+        dnsConfig.ipv6 = ipv6Enabled
+        return RuntimeConfig(
             mixedPort: mixedPort,
             controllerHost: "127.0.0.1",
             controllerPort: controllerPort,
@@ -154,12 +155,13 @@ enum AppPreferences {
             enableExternalController: enableExternalController,
             secret: persistedSecret(),
             mode: mode,
-            tunEnabled: tunEnabled,
+            tunEnabled: overrideTun ?? tunEnabled,
             tunConfig: TUNConfigStore.load(),
             dnsServers: dnsServers,
             ipv6Enabled: ipv6Enabled,
             dnsOverwriteEnabled: dnsOverwriteEnabled,
-            dnsConfig: DNSConfigStore.load()
+            dnsConfig: dnsConfig,
+            logLevel: logLevel
         )
     }
 
@@ -170,6 +172,8 @@ enum AppPreferences {
         store.proxyGuardEnabled = proxyGuardEnabled
         store.hotkeysEnabled = hotkeysEnabled
         store.globalHotkey = globalHotkey
+        store.lightweightModeEnabled = lightweightModeEnabled
+        store.resumeLastProxyState = resumeLastProxyState
         store.mixedPortInput = mixedPort
         store.controllerPortInput = controllerPort
         store.enableExternalController = enableExternalController
@@ -178,7 +182,6 @@ enum AppPreferences {
         store.dnsOverwriteEnabled = dnsOverwriteEnabled
         store.dnsConfig = DNSConfigStore.load()
         store.tunConfig = TUNConfigStore.load()
-        store.menuBarIconStyle = menuBarIconStyle
         store.customMenuBarIconPath = customMenuBarIconPath
         store.appearance = appearance
     }
@@ -190,13 +193,14 @@ enum AppPreferences {
         proxyGuardEnabled = store.proxyGuardEnabled
         hotkeysEnabled = store.hotkeysEnabled
         globalHotkey = store.globalHotkey
+        lightweightModeEnabled = store.lightweightModeEnabled
+        resumeLastProxyState = store.resumeLastProxyState
         mixedPort = store.mixedPortInput
         controllerPort = store.controllerPortInput
         enableExternalController = store.enableExternalController
         dnsServersText = store.dnsServersText
         ipv6Enabled = store.ipv6Enabled
         dnsOverwriteEnabled = store.dnsOverwriteEnabled
-        menuBarIconStyle = store.menuBarIconStyle
         customMenuBarIconPath = store.customMenuBarIconPath
         appearance = store.appearance
     }

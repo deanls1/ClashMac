@@ -32,6 +32,7 @@ struct ConnectionsView: View {
                     .tint(VergeColor.accent)
                     .disabled(store.connections.isEmpty || !store.coreState.isRunning)
             }
+            .padding(.horizontal, VergeLayout.contentPadding)
 
             VergeFilterBar(
                 query: $store.connectionFilter,
@@ -85,8 +86,8 @@ struct ConnectionsView: View {
                         .lineLimit(1)
                     if !item.process.isEmpty && item.process != "—" {
                         Text(item.process)
-                            .font(VergeTypography.small)
-                            .foregroundStyle(.tertiary)
+                            .font(VergeTypography.bodyMedium)
+                            .foregroundStyle(VergeColor.accent)
                             .lineLimit(1)
                     }
                 }
@@ -150,7 +151,10 @@ struct ConnectionsView: View {
             }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
-        .padding(VergeLayout.contentPadding)
+        .padding(.horizontal, VergeLayout.contentPadding)
+        .padding(.bottom, VergeLayout.contentPadding)
+        .frame(maxWidth: VergeLayout.pageMaxWidth)
+        .frame(maxWidth: .infinity)
         .onKeyPress(.return) {
             if let selectedItem {
                 detailItem = selectedItem
@@ -212,12 +216,22 @@ private struct VergeConnectionDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(VergeColor.accent)
+                    .frame(width: 22, height: 22)
                 Text("连接详情")
                     .font(VergeTypography.sectionTitle)
                 Spacer()
-                Button("关闭") { dismiss() }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+            .background(VergeColor.cardFill.opacity(0.92))
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(VergeColor.border).frame(height: 0.5)
             }
 
             VStack(spacing: 0) {
@@ -235,8 +249,8 @@ private struct VergeConnectionDetailSheet: View {
                     VergeChainLabel(chain: item.chain)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
                 Divider().opacity(0.35)
                 detailRow("上传", "\(item.uploadFormatted) · \(item.uploadSpeedFormatted)")
                 Divider().opacity(0.35)
@@ -249,16 +263,26 @@ private struct VergeConnectionDetailSheet: View {
                 }
             }
             .background(vergeCardBackground)
+            .padding(16)
 
-            if isActive {
-                Button("断开此连接", role: .destructive) {
-                    onClose()
-                    dismiss()
+            HStack {
+                Spacer()
+                Button("关闭") { dismiss() }
+                if isActive {
+                    Button("断开此连接", role: .destructive) {
+                        onClose()
+                        dismiss()
+                    }
                 }
-                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(VergeColor.cardFill.opacity(0.92))
+            .overlay(alignment: .top) {
+                Rectangle().fill(VergeColor.border).frame(height: 0.5)
             }
         }
-        .padding(24)
+        .background(VergeColor.canvas)
         .frame(width: 500)
     }
 
@@ -273,8 +297,8 @@ private struct VergeConnectionDetailSheet: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
     }
 }
 

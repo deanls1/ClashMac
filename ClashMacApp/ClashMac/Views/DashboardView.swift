@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DashboardView: View {
@@ -10,18 +11,29 @@ struct DashboardView: View {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(VergeColor.canvas)
-                .id(store.selectedSection)
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .trailing)),
-                    removal: .opacity
-                ))
         }
         .frame(minWidth: 1000, minHeight: 680)
         .font(VergeTypography.body)
         .preferredColorScheme(store.appearance.colorScheme)
         .background(VergeColor.canvas)
-        .animation(.easeInOut(duration: 0.2), value: store.selectedSection)
+        .onChange(of: store.selectedSection) { _, section in
+            // 规则页的数据/过滤刷新由 RulesView.onAppear 独占，避免与此处重复触发导致双倍开销。
+            store.syncLogStreamForVisibleSection()
+            store.syncLiveDataForSection(section)
+        }
+        .onChange(of: store.logsSource) { _, _ in
+            store.syncLogStreamForVisibleSection()
+        }
+        .onAppear {
+            store.setDashboardVisible(true)
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.title == "Clash Mac" {
+                    window.center()
+                }
+            }
+        }
         .onDisappear {
+            store.setDashboardVisible(false)
             MainWindowController.dashboardDidClose()
         }
         .sheet(isPresented: $store.isRulesEditorPresented) {

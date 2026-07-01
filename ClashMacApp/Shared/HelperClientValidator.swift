@@ -30,7 +30,7 @@ enum HelperClientValidator {
               let info = cfInfo as? [String: Any] else { return false }
 
         if let identifier = info[kSecCodeInfoIdentifier as String] as? String,
-           allowedBundleIDs.contains(identifier) || identifier.hasPrefix("com.clashmac.app") {
+           allowedBundleIDs.contains(identifier) {
             return true
         }
 

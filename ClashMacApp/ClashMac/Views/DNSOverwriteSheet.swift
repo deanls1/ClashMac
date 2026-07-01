@@ -4,83 +4,285 @@ struct DNSOverwriteSheet: View {
     @Bindable var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var config = DNSConfig.vergeDefault
-    @State private var showAdvanced = false
+    @State private var isVisual = true
+    @State private var yamlText = ""
+    @State private var yamlError: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("DNS 覆写")
-                    .font(.title2.weight(.bold))
-                Spacer()
-                Button("重置为默认值") {
-                    config = .vergeDefault
-                }
-                .foregroundStyle(VergeColor.upload)
-                Button(showAdvanced ? "可视化" : "YAML 预览") {
-                    showAdvanced.toggle()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(VergeColor.accent)
-            }
-            .padding()
+            VergeConfigSheetHeader(
+                title: "DNS 设置",
+                symbol: "globe",
+                onReset: resetToDefaults,
+                trailing: AnyView(VergeConfigEditorModeToggle(isVisual: $isVisual))
+            )
 
-            Text("如果你不清楚这里的设置请不要修改，并保持 DNS 覆写开启")
-                .font(.caption)
-                .foregroundStyle(VergeColor.upload)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
+            VergeConfigWarningBanner(
+                message: "如果你不清楚这些设置，请保持 DNS 覆写开启并使用默认值。配置将写入独立文件并覆盖订阅中的 DNS 段。"
+            )
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if showAdvanced {
-                        Text("以下为当前 DNS 配置的 YAML 预览（只读）。修改请使用可视化表单。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextEditor(text: .constant(config.yamlBlock(includePrivilegedListen: store.tunEnabled)))
-                            .font(.caption.monospaced())
-                            .frame(minHeight: 360)
-                            .padding(8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(VergeColor.surface))
-                            .disabled(true)
+                VStack(alignment: .leading, spacing: 18) {
+                    if isVisual {
+                        generalSection
+                        nameserverSection
+                        fallbackFilterSection
+                        hostsSection
                     } else {
-                        dnsToggle("启用 DNS", $config.enable)
-                        dnsField("DNS 监听地址", $config.listen)
-                        dnsPicker("增强模式", selection: $config.enhancedMode, options: ["fake-ip", "redir-host"])
-                        dnsField("Fake IP 范围", $config.fakeIPRange)
-                        dnsPicker("Fake IP 过滤模式", selection: $config.fakeIPFilterMode, options: ["blacklist", "whitelist"])
-                        dnsToggle("IPv6", $config.ipv6, subtitle: "启用 IPv6 DNS 解析")
-                        dnsToggle("优先使用 HTTP/3", $config.preferH3, subtitle: "DNS DOH 使用 HTTP/3 协议")
-                        dnsToggle("遵循路由规则", $config.respectRules, subtitle: "DNS 连接遵循路由规则")
-                        dnsToggle("使用 Hosts", $config.useHosts)
-                        dnsToggle("使用系统 Hosts", $config.useSystemHosts)
-                        dnsToggle("直连域名服务器遵循策略", $config.directNameserverFollowPolicy)
-
-                        dnsTextArea("默认域名服务器", text: bindingList(\.defaultNameserver), subtitle: "用于解析 DNS 服务器的默认 DNS 服务器")
-                        dnsTextArea("域名服务器", text: bindingList(\.nameserver), subtitle: "DNS 服务器列表，用逗号分隔")
-                        dnsTextArea("代理服务器域名服务器", text: bindingList(\.proxyServerNameserver))
-                        dnsTextArea("直连域名服务器", text: bindingList(\.directNameserver), subtitle: "直连出口域名解析服务器，支持 system 关键字")
-                        dnsTextArea("Fake IP 过滤", text: bindingList(\.fakeIPFilter), subtitle: "跳过 Fake IP 解析的域名")
-                        dnsTextArea("域名服务器策略", text: $config.nameserverPolicyText, subtitle: "格式: domain=server1;server2")
-                        dnsTextArea("Hosts", text: $config.hostsText, subtitle: "格式: domain=ip")
+                        yamlSection
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
 
-            HStack {
-                Spacer()
-                Button("取消") { dismiss() }
-                Button("保存") {
-                    store.saveDNSConfig(config)
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(VergeColor.accent)
+            if let yamlError {
+                Text(yamlError)
+                    .font(VergeTypography.caption)
+                    .foregroundStyle(VergeColor.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
             }
-            .padding()
+
+            VergeConfigSheetFooter(
+                onCancel: { dismiss() },
+                onSave: save,
+                saveDisabled: yamlError != nil && !isVisual
+            )
         }
-        .frame(width: 560, height: showAdvanced ? 520 : 640)
-        .onAppear { config = store.dnsConfig }
+        .frame(width: 580, height: 680)
+        .background(VergeColor.canvas)
+        .onAppear {
+            config = store.dnsConfig
+            refreshYAMLFromConfig()
+        }
+        .onChange(of: isVisual) { _, visual in
+            if visual {
+                applyYAMLToConfigIfPossible()
+            } else {
+                refreshYAMLFromConfig()
+            }
+        }
+        .onChange(of: config) { _, _ in
+            guard isVisual else { return }
+            refreshYAMLFromConfig()
+        }
+    }
+
+    // MARK: - Sections
+
+    private var generalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "常规")
+            VergeConfigToggleRow(title: "启用 DNS", isOn: $config.enable)
+            VergeConfigListDivider()
+            VergeConfigFieldRow(
+                title: "监听地址",
+                subtitle: store.tunEnabled ? "TUN 模式下写入配置" : "非 TUN 模式不会监听 53 端口",
+                text: $config.listen,
+                placeholder: ":53"
+            )
+            VergeConfigListDivider()
+            VergeConfigSegmentRow(
+                title: "增强模式",
+                selection: $config.enhancedMode,
+                options: [("fake-ip", "fake-ip"), ("redir-host", "redir-host")]
+            )
+            VergeConfigListDivider()
+            VergeConfigFieldRow(
+                title: "Fake IP 范围",
+                text: $config.fakeIPRange,
+                placeholder: "198.18.0.1/16"
+            )
+            VergeConfigListDivider()
+            VergeConfigSegmentRow(
+                title: "Fake IP 过滤模式",
+                selection: $config.fakeIPFilterMode,
+                options: [("blacklist", "blacklist"), ("whitelist", "whitelist")]
+            )
+            VergeConfigListDivider()
+            VergeConfigToggleRow(title: "IPv6", subtitle: "启用 IPv6 DNS 解析", isOn: $config.ipv6)
+            VergeConfigListDivider()
+            VergeConfigToggleRow(title: "优先 HTTP/3", subtitle: "DoH 使用 HTTP/3", isOn: $config.preferH3)
+            VergeConfigListDivider()
+            VergeConfigToggleRow(title: "遵循路由规则", subtitle: "DNS 连接遵循路由规则", isOn: $config.respectRules)
+            VergeConfigListDivider()
+            VergeConfigToggleRow(title: "使用 Hosts", isOn: $config.useHosts)
+            VergeConfigListDivider()
+            VergeConfigToggleRow(title: "使用系统 Hosts", isOn: $config.useSystemHosts)
+            VergeConfigListDivider()
+            VergeConfigToggleRow(
+                title: "直连 NS 遵循策略",
+                isOn: $config.directNameserverFollowPolicy
+            )
+        }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    private var nameserverSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VergeConfigSectionTitle(title: "域名服务器")
+            VergeConfigTextAreaRow(
+                title: "默认域名服务器",
+                subtitle: "解析 DNS 服务器域名时使用，支持 system",
+                text: bindingList(\.defaultNameserver),
+                minHeight: 72
+            )
+            VergeConfigTextAreaRow(
+                title: "域名服务器",
+                subtitle: "主 DNS 列表，逗号分隔",
+                text: bindingList(\.nameserver),
+                minHeight: 72
+            )
+            VergeConfigTextAreaRow(
+                title: "Fallback",
+                subtitle: "备用 DNS，通常留空",
+                text: bindingList(\.fallback),
+                minHeight: 56
+            )
+            VergeConfigTextAreaRow(
+                title: "代理服务器域名服务器",
+                text: bindingList(\.proxyServerNameserver),
+                minHeight: 64
+            )
+            VergeConfigTextAreaRow(
+                title: "直连域名服务器",
+                subtitle: "支持 system 关键字",
+                text: bindingList(\.directNameserver),
+                minHeight: 64
+            )
+            VergeConfigTextAreaRow(
+                title: "Fake IP 过滤",
+                subtitle: "跳过 Fake IP 的域名",
+                text: bindingList(\.fakeIPFilter),
+                minHeight: 88
+            )
+            VergeConfigTextAreaRow(
+                title: "域名服务器策略",
+                subtitle: "格式：domain=server1;server2",
+                text: $config.nameserverPolicyText,
+                minHeight: 64
+            )
+        }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    private var fallbackFilterSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "Fallback Filter")
+            VergeConfigToggleRow(title: "GeoIP", isOn: $config.fallbackGeoip)
+            VergeConfigListDivider()
+            VergeConfigFieldRow(
+                title: "GeoIP 国家码",
+                text: $config.fallbackGeoipCode,
+                placeholder: "CN"
+            )
+            VergeConfigListDivider()
+            VergeConfigTextAreaRow(
+                title: "IP CIDR",
+                text: bindingList(\.fallbackIpcidr),
+                minHeight: 56
+            )
+            VergeConfigListDivider()
+            VergeConfigTextAreaRow(
+                title: "Domain",
+                subtitle: "触发 fallback 的域名后缀",
+                text: bindingList(\.fallbackDomain),
+                minHeight: 64
+            )
+        }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    private var hostsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "Hosts")
+            VergeConfigTextAreaRow(
+                title: "Hosts 覆写",
+                subtitle: "格式：domain=ip 或 domain=ip1;ip2",
+                text: $config.hostsText,
+                minHeight: 72
+            )
+        }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    private var yamlSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VergeConfigSectionTitle(title: "高级编辑")
+            Text("直接编辑 YAML。切回「可视化」前会自动尝试解析。")
+                .font(VergeTypography.caption)
+                .foregroundStyle(.secondary)
+            TextEditor(text: $yamlText)
+                .font(VergeTypography.mono)
+                .scrollContentBackground(.hidden)
+                .padding(12)
+                .frame(minHeight: 480)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(VergeColor.surface)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(VergeColor.border, lineWidth: 0.5)
+                        }
+                }
+                .onChange(of: yamlText) { _, _ in
+                    yamlError = nil
+                }
+        }
+        .padding(14)
+        .background(sectionBackground)
+    }
+
+    // MARK: - Actions
+
+    private func resetToDefaults() {
+        config = .vergeDefault
+        yamlError = nil
+        refreshYAMLFromConfig()
+    }
+
+    private func save() {
+        if isVisual {
+            store.saveDNSConfig(config)
+            dismiss()
+            return
+        }
+        do {
+            let parsed = try DNSDocumentCodec.decode(yamlText)
+            store.saveDNSConfig(parsed)
+            dismiss()
+        } catch {
+            yamlError = error.localizedDescription
+        }
+    }
+
+    private func refreshYAMLFromConfig() {
+        yamlText = DNSDocumentCodec.encode(config, includePrivilegedListen: store.tunEnabled)
+    }
+
+    private func applyYAMLToConfigIfPossible() {
+        guard !yamlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        do {
+            config = try DNSDocumentCodec.decode(yamlText)
+            yamlError = nil
+        } catch {
+            yamlError = "YAML 解析失败：\(error.localizedDescription)"
+        }
+    }
+
+    private var sectionBackground: some View {
+        RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+            .fill(VergeColor.cardFill)
+            .overlay {
+                RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+                    .strokeBorder(VergeColor.border, lineWidth: 0.5)
+            }
     }
 
     private func bindingList(_ keyPath: WritableKeyPath<DNSConfig, [String]>) -> Binding<String> {
@@ -88,49 +290,5 @@ struct DNSOverwriteSheet: View {
             get: { config[keyPath: keyPath].joined(separator: ", ") },
             set: { config[keyPath: keyPath] = DNSConfig.parseList($0) }
         )
-    }
-
-    private func dnsToggle(_ title: String, _ binding: Binding<Bool>, subtitle: String? = nil) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold))
-                if let subtitle {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Toggle("", isOn: binding).labelsHidden()
-        }
-    }
-
-    private func dnsField(_ title: String, _ binding: Binding<String>) -> some View {
-        HStack {
-            Text(title).frame(width: 140, alignment: .leading)
-            TextField(title, text: binding).textFieldStyle(.roundedBorder)
-        }
-    }
-
-    private func dnsPicker(_ title: String, selection: Binding<String>, options: [String]) -> some View {
-        HStack {
-            Text(title).frame(width: 140, alignment: .leading)
-            Picker(title, selection: selection) {
-                ForEach(options, id: \.self) { Text($0).tag($0) }
-            }
-            .labelsHidden()
-        }
-    }
-
-    private func dnsTextArea(_ title: String, text: Binding<String>, subtitle: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.subheadline.weight(.semibold))
-            if let subtitle {
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
-            }
-            TextEditor(text: text)
-                .font(.caption.monospaced())
-                .frame(minHeight: 56)
-                .padding(6)
-                .background(RoundedRectangle(cornerRadius: 8).strokeBorder(VergeColor.border))
-        }
     }
 }

@@ -40,8 +40,8 @@ enum MihomoUnixTransport {
         var headerLines = [
             "\(method.uppercased()) \(fullPath) HTTP/1.1",
             "Host: localhost",
+            "Connection: close",
             "Authorization: Bearer \(secret)",
-            "Connection: close"
         ]
         if body != nil {
             headerLines.append("Content-Type: application/json")
@@ -88,6 +88,9 @@ enum MihomoUnixTransport {
             close(fd)
             throw MihomoUnixTransportError.connectFailed
         }
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
         return fd
     }
 
@@ -103,14 +106,13 @@ enum MihomoUnixTransport {
     }
 
     private static func readHTTPResponse(fd: Int32) throws -> (Int, Data) {
+        // Connection: close — 读到 EOF 再解析，避免 chunked 大响应（/proxies、/rules）半包阻塞。
         var buffer = Data()
-        var chunk = [UInt8](repeating: 0, count: 8192)
-
+        var chunk = [UInt8](repeating: 0, count: 65_536)
         while true {
             let n = read(fd, &chunk, chunk.count)
             if n <= 0 { break }
             buffer.append(chunk, count: n)
-            if buffer.range(of: Data([0x0d, 0x0a, 0x0d, 0x0a])) != nil { break }
         }
 
         guard let headerEnd = buffer.range(of: Data([0x0d, 0x0a, 0x0d, 0x0a])) else {
@@ -130,24 +132,47 @@ enum MihomoUnixTransport {
         }
 
         var contentLength: Int?
-        for line in lines.dropFirst() {
+        var transferChunked = false
+        for line in lines.dropFirst() where !line.isEmpty {
             let lower = line.lowercased()
             if lower.hasPrefix("content-length:") {
                 contentLength = Int(line.split(separator: ":", maxSplits: 1).last?
                     .trimmingCharacters(in: .whitespaces) ?? "")
+            } else if lower.contains("transfer-encoding") && lower.contains("chunked") {
+                transferChunked = true
             }
         }
 
-        var body = buffer[headerEnd.upperBound...]
-        if let contentLength {
-            while body.count < contentLength {
-                let n = read(fd, &chunk, chunk.count)
-                if n <= 0 { break }
-                body.append(contentsOf: chunk.prefix(n))
-            }
-            return (status, Data(body.prefix(contentLength)))
+        let rawBody = Data(buffer[headerEnd.upperBound...])
+        if transferChunked {
+            return (status, decodeChunkedBody(rawBody))
         }
-        return (status, Data(body))
+        if let contentLength, rawBody.count >= contentLength {
+            return (status, Data(rawBody.prefix(contentLength)))
+        }
+        return (status, rawBody)
+    }
+
+    /// Mihomo 在 HTTP/1.1 下会返回 chunked；解码后再交给 JSON 解析。
+    private static func decodeChunkedBody(_ data: Data) -> Data {
+        var result = Data()
+        var index = data.startIndex
+        while index < data.endIndex {
+            guard let lineEnd = data[index...].firstRange(of: Data([0x0d, 0x0a])) else { break }
+            let sizeLine = data[index..<lineEnd.lowerBound]
+            guard let sizeText = String(data: sizeLine, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                let size = Int(sizeText, radix: 16) else {
+                break
+            }
+            if size == 0 { break }
+            let chunkStart = lineEnd.upperBound
+            let chunkEnd = chunkStart + size
+            guard chunkEnd <= data.endIndex else { break }
+            result.append(data[chunkStart..<chunkEnd])
+            index = chunkEnd + 2
+        }
+        return result
     }
 }
 
@@ -156,6 +181,11 @@ final class MihomoUnixWebSocket: @unchecked Sendable {
     private var fd: Int32 = -1
     private var isRunning = false
     private let queue = DispatchQueue(label: "com.clashmac.mihomo.ws", qos: .utility)
+
+    /// 从运行时配置直接建立连接，集中 socket 路径与 secret 的取值，避免各订阅方重复拼装。
+    func connect(runtime: RuntimeConfig, path: String) throws {
+        try connect(socketPath: runtime.controllerUnixPath, path: path, secret: runtime.secret)
+    }
 
     func connect(socketPath: String, path: String, secret: String) throws {
         disconnect()
@@ -180,10 +210,31 @@ final class MihomoUnixWebSocket: @unchecked Sendable {
     func receiveText(onMessage: @escaping @Sendable (String) -> Void, onClose: @escaping @Sendable () -> Void) {
         queue.async { [weak self] in
             guard let self, self.isRunning, self.fd >= 0 else { return }
+            var messageBuffer = ""
             while self.isRunning {
                 do {
-                    if let text = try Self.readTextFrame(fd: self.fd) {
-                        onMessage(text)
+                    let frame = try Self.readFrame(fd: self.fd)
+                    switch frame.opcode {
+                    case 0x8:
+                        self.isRunning = false
+                        onClose()
+                        return
+                    case 0x9:
+                        try Self.sendPong(fd: self.fd, payload: frame.payload)
+                    case 0x1, 0x0:
+                        if let text = String(bytes: frame.payload, encoding: .utf8) {
+                            if frame.opcode == 0x1 {
+                                messageBuffer = text
+                            } else {
+                                messageBuffer += text
+                            }
+                            if frame.fin {
+                                onMessage(messageBuffer)
+                                messageBuffer = ""
+                            }
+                        }
+                    default:
+                        break
                     }
                 } catch {
                     self.isRunning = false
@@ -242,31 +293,69 @@ final class MihomoUnixWebSocket: @unchecked Sendable {
         }
     }
 
-    private static func readTextFrame(fd: Int32) throws -> String? {
+    private struct WSFrame {
+        let opcode: UInt8
+        let fin: Bool
+        let payload: [UInt8]
+    }
+
+    private static func readFrame(fd: Int32) throws -> WSFrame {
         var header = [UInt8](repeating: 0, count: 2)
-        guard readExact(fd, &header, 2) else { return nil }
+        guard readExact(fd, &header, 2) else { throw MihomoUnixTransportError.invalidResponse }
 
+        let fin = (header[0] & 0x80) != 0
         let opcode = header[0] & 0x0F
-        if opcode == 0x8 { throw MihomoUnixTransportError.invalidResponse }
-
+        let masked = (header[1] & 0x80) != 0
         var length = Int(header[1] & 0x7F)
+
         if length == 126 {
             var ext = [UInt8](repeating: 0, count: 2)
-            guard readExact(fd, &ext, 2) else { return nil }
+            guard readExact(fd, &ext, 2) else { throw MihomoUnixTransportError.invalidResponse }
             length = Int(ext[0]) << 8 | Int(ext[1])
         } else if length == 127 {
             var ext = [UInt8](repeating: 0, count: 8)
-            guard readExact(fd, &ext, 8) else { return nil }
+            guard readExact(fd, &ext, 8) else { throw MihomoUnixTransportError.invalidResponse }
             length = ext.suffix(4).reduce(0) { ($0 << 8) | Int($1) }
         }
 
-        var payload = [UInt8](repeating: 0, count: length)
-        guard readExact(fd, &payload, length) else { return nil }
-
-        if opcode == 0x1 || opcode == 0x0 {
-            return String(bytes: payload, encoding: .utf8)
+        var maskKey: [UInt8] = []
+        if masked {
+            maskKey = [UInt8](repeating: 0, count: 4)
+            guard readExact(fd, &maskKey, 4) else { throw MihomoUnixTransportError.invalidResponse }
         }
-        return nil
+
+        var payload = [UInt8](repeating: 0, count: length)
+        guard readExact(fd, &payload, length) else { throw MihomoUnixTransportError.invalidResponse }
+
+        if masked {
+            payload = payload.enumerated().map { idx, byte in
+                byte ^ maskKey[idx % 4]
+            }
+        }
+
+        return WSFrame(opcode: opcode, fin: fin, payload: payload)
+    }
+
+    private static func sendPong(fd: Int32, payload: [UInt8]) throws {
+        var frame = [UInt8]()
+        frame.append(0x8A) // FIN + pong
+        if payload.count < 126 {
+            frame.append(UInt8(payload.count))
+        } else if payload.count <= 0xFFFF {
+            frame.append(126)
+            frame.append(UInt8((payload.count >> 8) & 0xFF))
+            frame.append(UInt8(payload.count & 0xFF))
+        } else {
+            throw MihomoUnixTransportError.requestFailed
+        }
+        frame.append(contentsOf: payload)
+        try MihomoUnixTransportWriteAll(fd, Data(frame))
+    }
+
+    private static func readTextFrame(fd: Int32) throws -> String? {
+        let frame = try readFrame(fd: fd)
+        guard frame.opcode == 0x1 || frame.opcode == 0x0 else { return nil }
+        return String(bytes: frame.payload, encoding: .utf8)
     }
 
     private static func readExact(_ fd: Int32, _ buffer: inout [UInt8], _ count: Int) -> Bool {

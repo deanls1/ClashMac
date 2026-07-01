@@ -36,13 +36,16 @@ enum GzipDecoder {
 
             var status: Int32 = Z_OK
             repeat {
-                stream.next_out = UnsafeMutablePointer(mutating: &buffer)
-                stream.avail_out = uInt(chunkSize)
-                status = inflate(&stream, Z_NO_FLUSH)
+                let produced = buffer.withUnsafeMutableBufferPointer { outputPtr -> Int in
+                    guard let base = outputPtr.baseAddress else { return 0 }
+                    stream.next_out = base
+                    stream.avail_out = uInt(chunkSize)
+                    status = inflate(&stream, Z_NO_FLUSH)
+                    return chunkSize - Int(stream.avail_out)
+                }
                 guard status == Z_OK || status == Z_STREAM_END else {
                     throw Error.decompressFailed(code: status)
                 }
-                let produced = chunkSize - Int(stream.avail_out)
                 if produced > 0 {
                     output.append(buffer, count: produced)
                 }

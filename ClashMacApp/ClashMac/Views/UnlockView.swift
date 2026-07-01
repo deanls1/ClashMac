@@ -5,8 +5,8 @@ struct UnlockView: View {
     @State private var showAddForm = false
 
     private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
     ]
 
     var body: some View {
@@ -26,16 +26,17 @@ struct UnlockView: View {
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
                 .tint(VergeColor.accent)
-                .disabled(!store.coreState.isRunning || store.unlockTargets.contains { $0.status == .testing })
+                .disabled(store.unlockTargets.contains { $0.status == .testing })
             }
+            .padding(.horizontal, VergeLayout.contentPadding)
 
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: 10) {
                     if !store.coreState.isRunning {
                         HStack(spacing: 10) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.orange)
-                            Text("请先启动代理后再进行解锁测试")
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(VergeColor.accent)
+                            Text("未启动代理时将使用直连检测；启动后可验证代理解锁效果")
                                 .font(VergeTypography.body)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -50,7 +51,7 @@ struct UnlockView: View {
 
                     if showAddForm { addForm }
 
-                    LazyVGrid(columns: columns, spacing: 14) {
+                    LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(store.unlockTargets) { target in
                             VergeUnlockCard(
                                 target: target,
@@ -62,7 +63,7 @@ struct UnlockView: View {
                     }
                 }
                 .padding(VergeLayout.contentPadding)
-                .frame(maxWidth: 900)
+                .frame(maxWidth: VergeLayout.pageMaxWidth)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -81,7 +82,7 @@ struct UnlockView: View {
             .tint(VergeColor.accent)
             .disabled(store.customUnlockName.isEmpty || store.customUnlockURL.isEmpty)
         }
-        .padding(16)
+        .padding(12)
         .background(vergeCardBackground)
     }
 }
@@ -133,7 +134,7 @@ private struct VergeUnlockCard: View {
                 .disabled(target.status == .testing)
             }
 
-            Spacer(minLength: 14)
+            Spacer(minLength: 10)
 
             HStack(spacing: 8) {
                 VergeUnlockStatusBadge(status: target.status)
@@ -151,15 +152,14 @@ private struct VergeUnlockCard: View {
                     .padding(.top, 10)
             }
         }
-        .padding(16)
-        .frame(minHeight: 118, alignment: .topLeading)
+        .padding(12)
+        .frame(minHeight: 96, alignment: .topLeading)
         .background {
-            RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(VergeColor.cardFill)
-                .shadow(color: VergeColor.shadow.opacity(hovered ? 0.14 : 0.06), radius: hovered ? 10 : 5, y: hovered ? 3 : 2)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: VergeLayout.cardRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(
                     statusBorderColor.opacity(hovered ? 0.35 : 0.2),
                     lineWidth: 0.5

@@ -30,6 +30,8 @@ node_modules/
 .cunzhi-memory
 # Xcode
 DerivedData/
+build/
+ClashMacApp/build/
 ClashMacApp/.derivedData/
 ClashMacApp/ClashMac/Resources/Core/mihomo*
 !ClashMacApp/ClashMac/Resources/Core/.gitkeep

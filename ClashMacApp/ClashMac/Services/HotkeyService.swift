@@ -44,6 +44,14 @@ final class HotkeyService {
         AXIsProcessTrusted()
     }
 
+    var isGlobalMonitorActive: Bool {
+        globalMonitor != nil
+    }
+
+    var isLocalMonitorActive: Bool {
+        localMonitor != nil
+    }
+
     func requestAccessibilityPermission() {
         let key = "AXTrustedCheckOptionPrompt" as CFString
         let options = [key: true] as CFDictionary

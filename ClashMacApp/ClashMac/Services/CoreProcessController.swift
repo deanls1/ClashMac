@@ -47,11 +47,11 @@ final class CoreProcessController: @unchecked Sendable {
 
         let proc = Process()
         proc.executableURL = coreURL
+        // secret 不走命令行（避免 ps 泄露）；mihomo 从 config 的 `secret:` 字段读取。
         var args = [
             "-f", configURL.path,
             "-d", workDirectory.path,
             "-ext-ctl-unix", runtime.controllerUnixPath,
-            "-secret", runtime.secret,
         ]
         if runtime.enableExternalController {
             args.append(contentsOf: [

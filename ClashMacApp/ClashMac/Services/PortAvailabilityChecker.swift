@@ -24,9 +24,30 @@ enum PortAvailabilityChecker {
             let command = parts[0]
             if let pid = Int32(parts[1]), pid == excludingOwnPID { continue }
             if command.lowercased().contains("mihomo") { continue }
-            let hint = command == "verge-mihomo" ? "Clash Verge" : command
-            return "端口 \(port) 已被占用（\(hint)），请关闭其他代理客户端或修改混合端口"
+            let hint = friendlyProcessName(command)
+            return conflictMessage(port: port, process: hint)
         }
         return nil
+    }
+
+    private static func friendlyProcessName(_ command: String) -> String {
+        switch command.lowercased() {
+        case "verge-mihomo", "clash-verge", "clash verge":
+            return "Clash Verge Rev"
+        case "mihomo", "clash-meta", "clash":
+            return command
+        default:
+            return command
+        }
+    }
+
+    private static func conflictMessage(port: Int, process: String) -> String {
+        if port == ClashMacPorts.vergeRevMixedPort || port == ClashMacPorts.vergeRevControllerPort {
+            return "端口 \(port) 已被占用（\(process)）。Clash Verge Rev 默认使用 7897/9097，请在 Clash Mac 设置中改用 \(ClashMacPorts.defaultMixedPort)/\(ClashMacPorts.defaultControllerPort)，或关闭 Verge。"
+        }
+        if port == ClashMacPorts.legacyMixedPort || port == ClashMacPorts.legacyControllerPort {
+            return "端口 \(port) 已被占用（\(process)）。请关闭其他 Clash 客户端，或在 Clash Mac 设置中修改混合端口（默认 \(ClashMacPorts.defaultMixedPort)）。"
+        }
+        return "端口 \(port) 已被占用（\(process)），请关闭其他代理客户端或在设置中修改端口"
     }
 }

@@ -1,3 +1,4 @@
+import CFNetwork
 import Foundation
 
 struct Profile: Identifiable, Codable, Equatable, Sendable {
@@ -174,25 +175,46 @@ enum SubscriptionFetcher {
 
     private static let maxDownloadBytes = 16 * 1024 * 1024
 
-    static func download(from urlString: String) async throws -> String {
+    static func download(from urlString: String, viaProxyPort: Int? = nil) async throws -> String {
         guard let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             throw FetchError.invalidURL
+        }
+        // 请求前先校验初始 URL 为 https，避免明文下载订阅（内含节点/密钥）。
+        guard url.scheme?.lowercased() == "https" else {
+            throw FetchError.insecureURL
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
         request.setValue("ClashMac/1.0", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let session = session(viaProxyPort: viaProxyPort)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw FetchError.invalidURL }
+        // 校验重定向后的最终 URL 仍为 https：防止 https→http 跳转导致的明文降级。
+        guard (http.url?.scheme?.lowercased() ?? "") == "https" else {
+            throw FetchError.insecureURL
+        }
         guard (200..<300).contains(http.statusCode) else { throw FetchError.httpStatus(http.statusCode) }
         guard data.count <= maxDownloadBytes else { throw FetchError.tooLarge }
         guard !data.isEmpty else { throw FetchError.emptyBody }
-        guard let scheme = url.scheme?.lowercased(), scheme == "https" else {
-            throw FetchError.insecureURL
-        }
         guard let text = decodeSubscriptionBody(data: data), !text.isEmpty else {
             throw FetchError.emptyBody
         }
         return text
+    }
+
+    private static func session(viaProxyPort: Int?) -> URLSession {
+        guard let port = viaProxyPort else { return .shared }
+        let config = URLSessionConfiguration.ephemeral
+        config.connectionProxyDictionary = [
+            kCFNetworkProxiesHTTPEnable as String: true,
+            kCFNetworkProxiesHTTPProxy as String: "127.0.0.1",
+            kCFNetworkProxiesHTTPPort as String: port,
+            kCFNetworkProxiesHTTPSEnable as String: true,
+            kCFNetworkProxiesHTTPSProxy as String: "127.0.0.1",
+            kCFNetworkProxiesHTTPSPort as String: port,
+        ]
+        config.timeoutIntervalForRequest = 30
+        return URLSession(configuration: config)
     }
 
     private static func decodeSubscriptionBody(data: Data) -> String? {
