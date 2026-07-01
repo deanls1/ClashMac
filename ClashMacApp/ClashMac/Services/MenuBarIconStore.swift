@@ -48,6 +48,7 @@ enum MenuBarIconStore {
     }
 
     nonisolated(unsafe) private static var cachedDefaultIcon: NSImage?
+    nonisolated(unsafe) private static var cachedTrayTemplate: NSImage?
 
     static func defaultAppIcon() -> NSImage? {
         if let cachedDefaultIcon { return cachedDefaultIcon }
@@ -56,6 +57,16 @@ enum MenuBarIconStore {
         prepared.isTemplate = false
         cachedDefaultIcon = prepared
         return prepared
+    }
+
+    /// 默认托盘图标：单色「模板」图，随菜单栏明暗自动反色，并保留 @1x/@2x 以在 Retina 下锐利。
+    static func defaultTrayTemplateIcon() -> NSImage? {
+        if let cachedTrayTemplate { return cachedTrayTemplate }
+        guard let image = NSImage(named: "TrayTemplate") else { return defaultAppIcon() }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        cachedTrayTemplate = image
+        return image
     }
 
     static func prepareForMenuBar(_ image: NSImage) -> NSImage {

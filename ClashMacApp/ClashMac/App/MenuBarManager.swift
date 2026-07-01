@@ -44,7 +44,6 @@ final class MenuBarManager {
         installStatusItemIfNeeded()
         guard let button = statusItem?.button else { return }
         button.image = iconImage(for: store)
-        button.image?.isTemplate = false
         button.toolTip = trayToolTip(for: store)
     }
 
@@ -73,7 +72,7 @@ final class MenuBarManager {
         if let custom = MenuBarIconStore.loadImage(from: store.customMenuBarIconPath) {
             return custom
         }
-        return MenuBarIconStore.defaultAppIcon()
+        return MenuBarIconStore.defaultTrayTemplateIcon()
     }
 
     private func installStatusItemIfNeeded() {
